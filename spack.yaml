@@ -1,0 +1,11 @@
+# Spack environment for local development
+# https://spack.readthedocs.io/en/latest/
+spack:
+  view: true
+  concretizer:
+    unify: true
+
+  specs:
+    - go@1.25
+    - goimports
+    - gopls

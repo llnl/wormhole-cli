@@ -1,0 +1,22 @@
+###########################
+# Build/test files
+###########################
+.dev/
+binaries/
+bom.json
+cover.out
+*.pprof
+wh
+
+###########################
+# Spack
+###########################
+.spack-env/
+spack.lock
+
+###########################
+# Coding agents
+###########################
+.claude/
+.gemini/
+.codex/

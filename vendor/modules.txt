@@ -1,0 +1,109 @@
+# github.com/BurntSushi/toml v1.5.0
+## explicit; go 1.18
+github.com/BurntSushi/toml
+github.com/BurntSushi/toml/internal
+# github.com/andydunstall/piko v0.8.1
+## explicit; go 1.24.1
+github.com/andydunstall/piko/client
+github.com/andydunstall/piko/pkg/backoff
+github.com/andydunstall/piko/pkg/websocket
+# github.com/andydunstall/yamux v0.1.5
+## explicit; go 1.22
+github.com/andydunstall/yamux
+# github.com/davecgh/go-spew v1.1.1
+## explicit
+github.com/davecgh/go-spew/spew
+# github.com/gabriel-vasile/mimetype v1.4.12
+## explicit; go 1.21
+github.com/gabriel-vasile/mimetype
+github.com/gabriel-vasile/mimetype/internal/charset
+github.com/gabriel-vasile/mimetype/internal/csv
+github.com/gabriel-vasile/mimetype/internal/json
+github.com/gabriel-vasile/mimetype/internal/magic
+github.com/gabriel-vasile/mimetype/internal/markup
+github.com/gabriel-vasile/mimetype/internal/scan
+# github.com/go-playground/locales v0.14.1
+## explicit; go 1.17
+github.com/go-playground/locales
+github.com/go-playground/locales/currency
+# github.com/go-playground/universal-translator v0.18.1
+## explicit; go 1.18
+github.com/go-playground/universal-translator
+# github.com/go-playground/validator/v10 v10.30.1
+## explicit; go 1.24.0
+github.com/go-playground/validator/v10
+# github.com/golang-jwt/jwt/v5 v5.3.1
+## explicit; go 1.21
+github.com/golang-jwt/jwt/v5
+# github.com/gorilla/websocket v1.5.3
+## explicit; go 1.12
+github.com/gorilla/websocket
+# github.com/leodido/go-urn v1.4.0
+## explicit; go 1.18
+github.com/leodido/go-urn
+github.com/leodido/go-urn/scim/schema
+# github.com/llnl/wormhole-airlock v0.1.0
+## explicit; go 1.26
+github.com/llnl/wormhole-airlock/internal/args
+github.com/llnl/wormhole-airlock/internal/ctls/logs
+github.com/llnl/wormhole-airlock/internal/ctls/rules
+github.com/llnl/wormhole-airlock/internal/ctls/storage
+github.com/llnl/wormhole-airlock/internal/ctls/util
+github.com/llnl/wormhole-airlock/internal/ctls/web
+github.com/llnl/wormhole-airlock/internal/jwks
+github.com/llnl/wormhole-airlock/internal/proxy
+github.com/llnl/wormhole-airlock/internal/tokens
+github.com/llnl/wormhole-airlock/internal/version
+github.com/llnl/wormhole-airlock/pkg/airlock
+# github.com/patrickmn/go-cache v2.1.0+incompatible
+## explicit
+github.com/patrickmn/go-cache
+# github.com/pmezard/go-difflib v1.0.0
+## explicit
+github.com/pmezard/go-difflib/difflib
+# github.com/stretchr/testify v1.11.1
+## explicit; go 1.17
+github.com/stretchr/testify/assert
+github.com/stretchr/testify/assert/yaml
+# github.com/urfave/cli-altsrc/v3 v3.1.0
+## explicit; go 1.23.2
+github.com/urfave/cli-altsrc/v3
+github.com/urfave/cli-altsrc/v3/toml
+# github.com/urfave/cli/v3 v3.10.1
+## explicit; go 1.22
+github.com/urfave/cli/v3
+# go.uber.org/mock v0.6.0
+## explicit; go 1.23.0
+go.uber.org/mock/gomock
+# go.uber.org/multierr v1.11.0
+## explicit; go 1.19
+go.uber.org/multierr
+# go.uber.org/zap v1.27.0
+## explicit; go 1.19
+go.uber.org/zap
+go.uber.org/zap/buffer
+go.uber.org/zap/internal
+go.uber.org/zap/internal/bufferpool
+go.uber.org/zap/internal/color
+go.uber.org/zap/internal/exit
+go.uber.org/zap/internal/pool
+go.uber.org/zap/internal/stacktrace
+go.uber.org/zap/zapcore
+# golang.org/x/crypto v0.46.0
+## explicit; go 1.24.0
+golang.org/x/crypto/sha3
+# golang.org/x/sync v0.19.0
+## explicit; go 1.24.0
+golang.org/x/sync/errgroup
+# golang.org/x/sys v0.39.0
+## explicit; go 1.24.0
+golang.org/x/sys/cpu
+# golang.org/x/text v0.32.0
+## explicit; go 1.24.0
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/language
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
