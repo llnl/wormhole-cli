@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	confFiles        []string
-	nodefaults       bool
+	confFiles  []string // set by --config
+	noDefaults bool     // set by --nodefaults
+
 	systemConfigPath = "/etc/wormhole/cli/wh.toml"
 )
 
@@ -67,7 +68,7 @@ func deepMerge(dst, src map[any]any) {
 func loadConfigs() (map[any]any, error) {
 	merged := make(map[any]any)
 
-	if !nodefaults {
+	if !noDefaults {
 		if m, err := readTOMLFile(systemConfigPath); err != nil {
 			// System config is optional: missing file is not an error,
 			// but parse errors and permission failures are fatal.

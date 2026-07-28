@@ -12,7 +12,7 @@ const (
 
 	setNameName                  = "name"
 	setConfigName                = "config"
-	setNodefaultsName            = "nodefaults"
+	setNoDefaultsName            = "noDefaults"
 	setCommunityName             = "community"
 	setEndpointName              = "endpoint"
 	setTokenName                 = "token"
@@ -61,10 +61,10 @@ func setConfig() cli.Flag {
 func setNoDefaults() cli.Flag {
 	return &cli.BoolFlag{
 		// Config source not valid for this option
-		Name:        setNodefaultsName,
+		Name:        setNoDefaultsName,
 		Sources:     cli.EnvVars(envPrefix + "NODEFAULTS"),
 		Usage:       "Skip system config at " + systemConfigPath,
-		Destination: &nodefaults,
+		Destination: &noDefaults,
 	}
 }
 
