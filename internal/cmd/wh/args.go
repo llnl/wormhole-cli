@@ -82,7 +82,7 @@ func setEndpoint() cli.Flag {
 	return &cli.StringFlag{
 		Name:     setEndpointName,
 		Sources:  confWrapper("ENDPOINT"),
-		Usage:    "(Optional) point to a custom route registry endpoint",
+		Usage:    "Use a specified route registry endpoint",
 		Config:   cli.StringConfig{TrimSpace: true},
 		Required: true,
 	}

@@ -17,29 +17,32 @@ var (
 	systemConfigPath = "/etc/wormhole/cli/wh.toml"
 )
 
+func confWrapper(varName string) cli.ValueSourceChain {
+	key := "defaults." + strings.ToLower(varName)
+	tomlSource := &configValueSource{key: key}
+	return cli.NewValueSourceChain(cli.EnvVar(envPrefix+varName), tomlSource)
+}
+
 func readTOMLFile(path string) (map[any]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var m map[string]any
-	if err := toml.Unmarshal(data, &m); err != nil {
+	var raw map[string]any
+	if err := toml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
-	return toAnyMap(m), nil
+	// Convert map[string]any -> map[any]any at the boundary.
+	// Only map values are recursively converted; slices pass through unchanged.
+	return convertMap(raw), nil
 }
 
-// BurntSushi/toml produces map[string]any for all tables, but altsrc.NestedVal
-// and deepMerge expect map[any]any. Convert at the boundary so the rest of the
-// code only has to reason about one map key type.
-//
-// Note: only map[string]any values are recursively converted. Slice values
-// (e.g. TOML arrays of tables) are passed through unchanged.
-func toAnyMap(m map[string]any) map[any]any {
+// convertMap recursively converts map[string]any to map[any]any.
+func convertMap(m map[string]any) map[any]any {
 	r := make(map[any]any, len(m))
 	for k, v := range m {
 		if n, ok := v.(map[string]any); ok {
-			r[k] = toAnyMap(n)
+			r[k] = convertMap(n)
 		} else {
 			r[k] = v
 		}
@@ -62,17 +65,17 @@ func deepMerge(dst, src map[any]any) {
 }
 
 func loadConfigs() (map[any]any, error) {
-	mergedConfig := make(map[any]any)
+	merged := make(map[any]any)
 
 	if !nodefaults {
-		m, err := readTOMLFile(systemConfigPath)
-		if err != nil {
-			// System config is optional
+		if m, err := readTOMLFile(systemConfigPath); err != nil {
+			// System config is optional: missing file is not an error,
+			// but parse errors and permission failures are fatal.
 			if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("system config %s: %w", systemConfigPath, err)
 			}
 		} else {
-			deepMerge(mergedConfig, m)
+			deepMerge(merged, m)
 		}
 	}
 
@@ -81,10 +84,10 @@ func loadConfigs() (map[any]any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("config %s: %w", path, err)
 		}
-		deepMerge(mergedConfig, m)
+		deepMerge(merged, m)
 	}
 
-	return mergedConfig, nil
+	return merged, nil
 }
 
 var configErrOnce sync.Once
@@ -96,9 +99,9 @@ type configValueSource struct {
 func (vs *configValueSource) Lookup() (string, bool) {
 	merged, err := loadConfigs()
 	if err != nil {
-		// Deduplicate: Lookup() is called per-flag, but we only want one warning.
+		// Deduplicate: Lookup() is called per-flag, but we only want one error printed.
 		configErrOnce.Do(func() {
-			fmt.Fprintf(os.Stderr, "warn: %v\n", err)
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		})
 		return "", false
 	}
@@ -114,10 +117,4 @@ func (vs *configValueSource) String() string {
 
 func (vs *configValueSource) GoString() string {
 	return fmt.Sprintf("&configValueSource{keyPath:%[1]q}", vs.key)
-}
-
-func confWrapper(varName string) cli.ValueSourceChain {
-	key := "defaults." + strings.ToLower(varName)
-	tomlSource := &configValueSource{key: key}
-	return cli.NewValueSourceChain(cli.EnvVar(envPrefix+varName), tomlSource)
 }
