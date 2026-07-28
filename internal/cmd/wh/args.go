@@ -2,11 +2,8 @@ package wh
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
-	altsrc "github.com/urfave/cli-altsrc/v3"
-	toml "github.com/urfave/cli-altsrc/v3/toml"
 	"github.com/urfave/cli/v3"
 )
 
@@ -15,6 +12,7 @@ const (
 
 	setNameName                  = "name"
 	setConfigName                = "config"
+	setNodefaultsName            = "nodefaults"
 	setCommunityName             = "community"
 	setEndpointName              = "endpoint"
 	setTokenName                 = "token"
@@ -30,24 +28,7 @@ const (
 	setAuthBearerHeaderName      = "auth-bearer-header"
 )
 
-var confFile string
 var StopOnNthArg int = 1
-
-func confWrapper(varName any) cli.ValueSourceChain {
-	switch v := varName.(type) {
-	case string:
-		return cli.EnvVars(envPrefix + v)
-	case []string:
-		var prefixedStrings []string
-		for _, str := range v {
-			prefixedStrings = append(prefixedStrings, envPrefix+str)
-		}
-		return cli.EnvVars(prefixedStrings...)
-	default:
-		key := fmt.Sprintf("wh.%s", varName)
-		return cli.NewValueSourceChain(toml.TOML(key, altsrc.NewStringPtrSourcer(&confFile)))
-	}
-}
 
 func setName() cli.Flag {
 	return &cli.StringFlag{
@@ -66,14 +47,24 @@ func setName() cli.Flag {
 }
 
 func setConfig() cli.Flag {
-	return &cli.StringFlag{
+	return &cli.StringSliceFlag{
+		// Config source not valid for this option
 		Name:        setConfigName,
-		Sources:     confWrapper("CONFIG"),
-		Usage:       "Path to a wh.toml configuration file",
+		Sources:     cli.EnvVars(envPrefix + "CONFIG"),
+		Usage:       "Path to a wh.toml configuration file (repeatable, layered after system config)",
 		Config:      cli.StringConfig{TrimSpace: true},
-		Value:       "/etc/wormhole/cli/wh.toml",
 		Required:    false,
-		Destination: &confFile,
+		Destination: &confFiles,
+	}
+}
+
+func setNoDefaults() cli.Flag {
+	return &cli.BoolFlag{
+		// Config source not valid for this option
+		Name:        setNodefaultsName,
+		Sources:     cli.EnvVars(envPrefix + "NODEFAULTS"),
+		Usage:       "Skip system config at " + systemConfigPath,
+		Destination: &nodefaults,
 	}
 }
 
