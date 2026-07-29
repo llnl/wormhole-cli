@@ -29,6 +29,7 @@ func Tasks() *cli.Command {
 		},
 		Flags: []cli.Flag{
 			setConfig(),
+			setNoDefaults(),
 			setEndpoint(),
 			setToken(),
 			setVerbose(),

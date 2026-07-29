@@ -1,0 +1,57 @@
+# Wormhole CLI Configuration Example
+#
+# This file serves as a reference for all available configuration options.
+# Copy this file to your desired location and uncomment/modify the values you need.
+#
+# Configuration precedence (highest to lowest):
+#   1. CLI flags
+#   2. Environment variables (WORMHOLE_ prefix)
+#   3. User config file (--config / WORMHOLE_CONFIG)
+#   4. System config file (/etc/wormhole/cli/wh.toml)
+#
+# NOTE: The --config and --nodefaults flags cannot be set from within a TOML config
+#       file. They must be provided via CLI flags or environment variables only.
+
+[defaults]
+# Required: Unique name for this wormhole instance (used in URLs).
+# May not contain underscores.
+# name = "my-wormhole"
+
+# Required: Route registry endpoint URL.
+# endpoint = "https://your-endpoint.example.com"
+
+# Required: Authentication token for the route registry.
+# token = "your-auth-token-here"
+
+# Application port to forward (default: 8080).
+# app_port = 8080
+
+# App community group for shared authentication.
+# community = "my-team"
+
+# Comma-separated list of allowed usernames (e.g. alice,bob1,joe2).
+# allowed_users = "alice,bob"
+
+# Comma-separated list of allowed groups (e.g. a-team,skunkworks,users).
+# allowed_groups = "dev-team,ops"
+
+# Comma-separated list of forbidden usernames (e.g. steve,joe1).
+# forbidden_users = "banned-user"
+
+# Comma-separated list of forbidden groups (e.g. b-team,devs).
+# forbidden_groups = "external"
+
+# Header to populate with request username (default: X-Forwarded-User).
+# forwarded_header_user = "X-Forwarded-User"
+
+# Header to populate with request user's groups (default: X-Forwarded-Groups).
+# forwarded_header_groups = "X-Forwarded-Groups"
+
+# Enable verbose logging (default: false).
+# verbose = true
+
+# Enable podman compatibility mode (hidden, default: false).
+# podman_compat = false
+
+# Set Authorization: Bearer header (hidden, default: false).
+# auth_bearer_header = false

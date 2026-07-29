@@ -107,19 +107,41 @@ Spack and direnv support are available through `spack.yaml` and `.envrc`.
 
 ## Configuration
 
+`wh` reads configuration from three sources, layered in order of increasing
+precedence:
+
+1. **System config** — `/etc/wormhole/cli/wh.toml` (skipped with `--nodefaults`
+   or `WORMHOLE_NODEFAULTS=1`)
+2. **User config** — one or more TOML files specified with `--config`
+   (repeatable; layered in the order given)
+3. **CLI flags and environment variables** — highest precedence
+
+Config files use a `[defaults]` section with lowercase keys matching the
+environment variable names (minus the `WORMHOLE_` prefix):
+
+```toml
+[defaults]
+endpoint = "https://route-registry.example.com"
+token    = "abc123"
+app_port = 8080
+verbose  = true
+```
+
 Global options:
 
 ```text
---config string  Path to a wh.toml configuration file (default: /etc/wormhole/cli/wh.toml)
---endpoint       Optional custom Route Registry endpoint
---token          Required Wormhole authentication token
---verbose        Enable verbose logging
+--config path        Path to a wh.toml configuration file (repeatable, layered after system config)
+--nodefaults         Skip system config at /etc/wormhole/cli/wh.toml
+--endpoint           Optional custom Route Registry endpoint
+--token              Required Wormhole authentication token
+--verbose            Enable verbose logging
 ```
 
 Environment variables map to CLI flags:
 
 ```text
-WORMHOLE_CONFIG
+WORMHOLE_NODEFAULTS    Set to "1" or "true" to skip system config
+WORMHOLE_CONFIG        Path to a wh.toml configuration file (comma-separated for multiple)
 WORMHOLE_ENDPOINT
 WORMHOLE_TOKEN
 WORMHOLE_VERBOSE
@@ -134,8 +156,11 @@ WORMHOLE_FORWARDED_HEADER_USER
 WORMHOLE_FORWARDED_HEADER_GROUPS
 ```
 
-The `--config` flag points to a TOML file. Environment variables are the most
-direct and consistently used configuration path in the current implementation.
+Precedence: CLI flag > environment variable > user config (last wins for
+duplicate keys) > system config.
+
+`--config` and `--nodefaults` cannot be set from TOML files due to circular
+dependency with the config loading logic.
 
 ## Running
 

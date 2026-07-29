@@ -3,6 +3,7 @@ module github.com/llnl/wormhole-cli
 go 1.26
 
 require (
+	github.com/BurntSushi/toml v1.5.0
 	github.com/andydunstall/piko v0.8.1
 	github.com/llnl/wormhole-airlock v0.1.0
 	github.com/stretchr/testify v1.11.1
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/andydunstall/yamux v0.1.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
