@@ -12,7 +12,7 @@ const (
 
 	setNameName                  = "name"
 	setConfigName                = "config"
-	setNoDefaultsName            = "noDefaults"
+	setNoDefaultsName            = "nodefaults"
 	setCommunityName             = "community"
 	setEndpointName              = "endpoint"
 	setTokenName                 = "token"
