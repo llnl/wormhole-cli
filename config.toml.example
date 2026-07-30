@@ -7,7 +7,7 @@
 #   1. CLI flags
 #   2. Environment variables (WORMHOLE_ prefix)
 #   3. User config file (--config / WORMHOLE_CONFIG)
-#   4. System config file (/etc/wormhole/cli/wh.toml)
+#   4. System config file (/etc/wormhole/cli.toml)
 #
 # NOTE: The --config and --nodefaults flags cannot be set from within a TOML config
 #       file. They must be provided via CLI flags or environment variables only.
