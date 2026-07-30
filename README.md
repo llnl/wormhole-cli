@@ -75,7 +75,7 @@ On HPC systems, `wormhole-cli` is expected to be distributed as a user-facing
 the user `PATH` and provide a default config file at:
 
 ```text
-/etc/wormhole/cli/wh.toml
+/etc/wormhole/cli.toml
 ```
 
 ### Build from Source
@@ -110,7 +110,7 @@ Spack and direnv support are available through `spack.yaml` and `.envrc`.
 `wh` reads configuration from three sources, layered in order of increasing
 precedence:
 
-1. **System config** — `/etc/wormhole/cli/wh.toml` (skipped with `--nodefaults`
+1. **System config** — `/etc/wormhole/cli.toml` (skipped with `--nodefaults`
    or `WORMHOLE_NODEFAULTS=1`)
 2. **User config** — one or more TOML files specified with `--config`
    (repeatable; layered in the order given)
@@ -130,8 +130,8 @@ verbose  = true
 Global options:
 
 ```text
---config path        Path to a wh.toml configuration file (repeatable, layered after system config)
---nodefaults         Skip system config at /etc/wormhole/cli/wh.toml
+--config path        Path to a TOML configuration file (repeatable, layered after system config)
+--nodefaults         Skip system config at /etc/wormhole/cli.toml
 --endpoint           Optional custom Route Registry endpoint
 --token              Required Wormhole authentication token
 --verbose            Enable verbose logging
@@ -141,7 +141,7 @@ Environment variables map to CLI flags:
 
 ```text
 WORMHOLE_NODEFAULTS    Set to "1" or "true" to skip system config
-WORMHOLE_CONFIG        Path to a wh.toml configuration file (comma-separated for multiple)
+WORMHOLE_CONFIG        Path to a TOML configuration file (comma-separated for multiple)
 WORMHOLE_ENDPOINT
 WORMHOLE_TOKEN
 WORMHOLE_VERBOSE

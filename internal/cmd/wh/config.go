@@ -15,7 +15,7 @@ var (
 	confFiles  []string // set by --config
 	noDefaults bool     // set by --nodefaults
 
-	systemConfigPath = "/etc/wormhole/cli/wh.toml"
+	systemConfigPath = "/etc/wormhole/cli.toml"
 )
 
 func confWrapper(varName string) cli.ValueSourceChain {
