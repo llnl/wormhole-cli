@@ -1,0 +1,65 @@
+package bootstrap
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
+	"github.com/urfave/cli/v3"
+)
+
+const systemConfigPath = "/etc/wormhole/cli/wh.toml"
+
+// Run performs the two-pass bootstrap:
+//  1. Parse --config and --nodefaults (silently ignoring other args).
+//  2. Load TOML files into MapSources, returning them for the flag Sources chain.
+//
+// The logger is owned by main.go and passed in via ctx.
+func Run(ctx context.Context) ([]cli.MapSource, error) {
+	var Configs []string
+	var NoDefaults bool
+
+	bootstrap := &cli.Command{
+		HideHelp: true,
+		OnUsageError: func(ctx context.Context, c *cli.Command, err error, isSubcommand bool) error {
+			return nil
+		},
+		Action: func(ctx context.Context, c *cli.Command) error { return nil },
+		Flags: []cli.Flag{
+			&cli.StringSliceFlag{
+				Name:        "config",
+				Usage:       "Path to a wh.toml configuration file (repeatable, layered after system config)",
+				Destination: &Configs,
+			},
+			&cli.BoolFlag{
+				Name:        "nodefaults",
+				Usage:       "Skip system config at /etc/wormhole/cli/wh.toml",
+				Destination: &NoDefaults,
+			},
+		},
+	}
+	if err := bootstrap.Run(ctx, os.Args); err != nil {
+		return nil, err
+	}
+
+	var mapSrcs []cli.MapSource
+	if !NoDefaults {
+		if ms, err := args.TOMLMapSource(systemConfigPath); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, fmt.Errorf("system config %s: %w", systemConfigPath, err)
+			}
+		} else {
+			mapSrcs = append(mapSrcs, ms)
+		}
+	}
+	for _, path := range Configs {
+		ms, err := args.TOMLMapSource(path)
+		if err != nil {
+			return nil, fmt.Errorf("config %s: %w", path, err)
+		}
+		mapSrcs = append(mapSrcs, ms)
+	}
+
+	return mapSrcs, nil
+}

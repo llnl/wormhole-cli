@@ -40,9 +40,6 @@ const (
 type CLIArgs struct {
 	Global GlobalArgs
 	Open   OpenArgs
-
-	Configs    []string
-	NoDefaults bool
 }
 
 // GlobalArgs holds values for flags defined on the root command.
