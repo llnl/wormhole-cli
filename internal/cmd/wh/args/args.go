@@ -35,8 +35,6 @@ const (
 
 // CLIArgs is the superset of all CLI configuration. It composes
 // GlobalArgs (root-level flags) and OpenArgs (open subcommand flags)
-// along with bootstrap-only fields (Configs, NoDefaults) that are
-// consumed between passes and never exposed as flags.
 type CLIArgs struct {
 	Global GlobalArgs
 	Open   OpenArgs
@@ -44,7 +42,8 @@ type CLIArgs struct {
 
 // GlobalArgs holds values for flags defined on the root command.
 // It does NOT include Config or NoDefaults — those are bootstrap-only
-// fields on CLIArgs, consumed between passes and never exposed as flags.
+// local variables, consumed early and never exposed as flags to the
+// actual application.
 type GlobalArgs struct {
 	Endpoint string
 	Token    string

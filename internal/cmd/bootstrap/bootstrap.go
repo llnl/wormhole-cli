@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/urfave/cli/v3"
@@ -22,6 +23,9 @@ func Run(ctx context.Context) ([]cli.MapSource, error) {
 
 	bootstrap := &cli.Command{
 		HideHelp: true,
+		// Silently ignore usage errors (unknown flags, typos, etc.) so that
+		// the bootstrap command doesn't interfere with the main app's parsing.
+		// The main app will report its own errors on the second pass.
 		OnUsageError: func(ctx context.Context, c *cli.Command, err error, isSubcommand bool) error {
 			return nil
 		},
@@ -46,6 +50,8 @@ func Run(ctx context.Context) ([]cli.MapSource, error) {
 	var mapSrcs []cli.MapSource
 	if !NoDefaults {
 		if ms, err := args.TOMLMapSource(systemConfigPath); err != nil {
+			// System config is optional: missing file is not an error,
+			// but parse errors and permission failures are fatal.
 			if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("system config %s: %w", systemConfigPath, err)
 			}
@@ -60,6 +66,11 @@ func Run(ctx context.Context) ([]cli.MapSource, error) {
 		}
 		mapSrcs = append(mapSrcs, ms)
 	}
+
+	// Reverse so user configs take precedence over system config.
+	// ValueSourceChain.Lookup() returns the first source with a value,
+	// so earlier entries win. User configs come first, system config last.
+	slices.Reverse(mapSrcs)
 
 	return mapSrcs, nil
 }

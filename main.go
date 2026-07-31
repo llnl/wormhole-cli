@@ -32,11 +32,13 @@ func main() {
 
 	cli.VersionPrinter = version.Printer
 
+	// Pass 1: parse --config/--nodefaults, load TOML files into MapSources.
 	srcs, err := bootstrap.Run(lCtx)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	// Pass 2: build the CLI command tree with TOML-sourced flags and run.
 	cliArgs := &args.CLIArgs{}
 	app := wh.Tasks(cliArgs)
 	app.Flags = args.GlobalFlags(cliArgs, srcs...)
