@@ -7,10 +7,11 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
 )
 
-func listCommunities(ctx context.Context, cCmd *cli.Command, registry routeregistry.RegistryService, logger *slog.Logger) error {
+func listCommunities(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
 	identifier := cCmd.Args().First()
 
 	cl, err := registry.ListCommunities(ctx, identifier)
@@ -51,7 +52,7 @@ func listCommunities(ctx context.Context, cCmd *cli.Command, registry routeregis
 	return nil
 }
 
-func addCommunity(ctx context.Context, cCmd *cli.Command, registry routeregistry.RegistryService, logger *slog.Logger) error {
+func addCommunity(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
 	name := cCmd.Args().First()
 	if name == "" {
 		return fmt.Errorf("community name is required")
@@ -66,7 +67,7 @@ func addCommunity(ctx context.Context, cCmd *cli.Command, registry routeregistry
 	return nil
 }
 
-func removeCommunity(ctx context.Context, cCmd *cli.Command, registry routeregistry.RegistryService, logger *slog.Logger) error {
+func removeCommunity(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
 	identifier := cCmd.Args().First()
 	if identifier == "" {
 		return fmt.Errorf("community name or id is required")
@@ -79,7 +80,7 @@ func removeCommunity(ctx context.Context, cCmd *cli.Command, registry routeregis
 	return nil
 }
 
-func addRouteToCommunity(ctx context.Context, cCmd *cli.Command, registry routeregistry.RegistryService, logger *slog.Logger) error {
+func addRouteToCommunity(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
 	if cCmd.Args().Len() != 2 {
 		return fmt.Errorf("expected community name or id and route fully qualified name or id")
 	}
@@ -100,7 +101,7 @@ func addRouteToCommunity(ctx context.Context, cCmd *cli.Command, registry router
 	return modRouteToCommunity(ctx, registry, logger, communityIdent, routeIdent, addOp)
 }
 
-func removeRouteFromCommunity(ctx context.Context, cCmd *cli.Command, registry routeregistry.RegistryService, logger *slog.Logger) error {
+func removeRouteFromCommunity(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
 	if cCmd.Args().Len() != 2 {
 		return fmt.Errorf("expected community name or id and route fully qualified name or id")
 	}

@@ -7,7 +7,6 @@ require (
 	github.com/andydunstall/piko v0.8.1
 	github.com/llnl/wormhole-airlock v0.1.0
 	github.com/stretchr/testify v1.11.1
-	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli/v3 v3.10.1
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.0

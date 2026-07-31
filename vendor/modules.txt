@@ -65,10 +65,6 @@ github.com/pmezard/go-difflib/difflib
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/assert/yaml
-# github.com/urfave/cli-altsrc/v3 v3.1.0
-## explicit; go 1.23.2
-github.com/urfave/cli-altsrc/v3
-github.com/urfave/cli-altsrc/v3/toml
 # github.com/urfave/cli/v3 v3.10.1
 ## explicit; go 1.22
 github.com/urfave/cli/v3
