@@ -16,6 +16,10 @@ import (
 	"github.com/llnl/wormhole-cli/internal/version"
 )
 
+// globalHandler is the signature for all command handlers wrapped by globalWrap.
+// The a parameter is accepted for uniformity: handlers that need global flag
+// values (endpoint, token, verbose) read from a, while handlers that only use
+// positional args (community, route) ignore it.
 type globalHandler func(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error
 
 func Tasks(a *args.CLIArgs, srcs ...cli.MapSource) *cli.Command {
