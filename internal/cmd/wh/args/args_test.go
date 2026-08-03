@@ -55,16 +55,21 @@ func TestGlobalFlags(t *testing.T) {
 				assert.Equal(t, c.category, f.Category)
 				assert.Equal(t, c.destination, f.Destination)
 			}
-			switch s := f.(type) {
-			case *cli.StringFlag:
-				assert.NotNil(t, s.Sources)
-				assert.IsType(t, cli.ValueSourceChain{}, s.Sources)
-			case *cli.BoolFlag:
-				assert.NotNil(t, s.Sources)
-				assert.IsType(t, cli.ValueSourceChain{}, s.Sources)
-			}
 		})
 	}
+
+	t.Run("all flags have ValueSourceChain sources", func(t *testing.T) {
+		for _, f := range flags {
+			switch f := f.(type) {
+			case *cli.StringFlag:
+				assert.NotNil(t, f.Sources)
+				assert.IsType(t, cli.ValueSourceChain{}, f.Sources)
+			case *cli.BoolFlag:
+				assert.NotNil(t, f.Sources)
+				assert.IsType(t, cli.ValueSourceChain{}, f.Sources)
+			}
+		}
+	})
 }
 
 func TestOpenFlags(t *testing.T) {

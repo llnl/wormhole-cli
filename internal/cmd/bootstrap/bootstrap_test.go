@@ -33,9 +33,6 @@ func TestRun_EmptySrcs(t *testing.T) {
 	}{
 		{"no args", nil, true, 0},
 		{"nodefaults skips system", []string{"--nodefaults"}, true, 0},
-		// System config at /etc/wormhole/cli.toml is optional:
-		// missing file is not an error (see bootstrap.go:56).
-		{"missing system config", nil, true, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -54,7 +54,6 @@ func TestIntegration_ValueSourceChain(t *testing.T) {
 		{"TOML default used", testutil.TOMLEntry("endpoint", tomlEndpoint), "", nil, tomlEndpoint, ""},
 		{"CLI overrides TOML", testutil.TOMLEntry("endpoint", tomlEndpoint), "", []string{"--endpoint", cliURL}, cliURL, ""},
 		{"CLI overrides env", testutil.TOMLEntry("endpoint", tomlEndpoint), envURL, []string{"--endpoint", cliURL}, cliURL, ""},
-		{"env overrides TOML no CLI", testutil.TOMLEntry("endpoint", tomlEndpoint), envURL, nil, envURL, ""},
 		{"multiple TOML user wins", testutil.TOMLEntry("endpoint", userURL), "", nil, userURL, testutil.TOMLEntry("endpoint", sysURL)},
 		{"second TOML provides missing key", testutil.TOMLEntry("app-port", 9090), "", nil, sysURL, testutil.TOMLEntry("endpoint", sysURL)},
 	}

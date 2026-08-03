@@ -19,8 +19,8 @@ func flagSources(flagName string, srcs ...cli.MapSource) cli.ValueSourceChain {
 	envName := strings.ReplaceAll(strings.ToUpper(flagName), "-", "_")
 	chain := cli.NewValueSourceChain(cli.EnvVar(envPrefix + envName))
 	for _, ms := range srcs {
-		chain.Append(cli.NewValueSourceChain(
-			cli.NewMapValueSource("defaults."+flagName, ms)))
+		chain.Chain = append(chain.Chain,
+			cli.NewMapValueSource("defaults."+flagName, ms))
 	}
 	return chain
 }

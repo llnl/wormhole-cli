@@ -51,9 +51,9 @@ func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 	var mapSrcs []cli.MapSource
 	if !noDefaults {
 		if ms, err := args.TOMLMapSource(systemConfigPath); err != nil {
-			// System config is optional: missing file is not an error,
-			// but parse errors and permission failures are fatal.
-			if !os.IsNotExist(err) {
+			if os.IsNotExist(err) {
+				// System config is optional: missing file is not an error.
+			} else {
 				return nil, fmt.Errorf("system config %s: %w", systemConfigPath, err)
 			}
 		} else {
