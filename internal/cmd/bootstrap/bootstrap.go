@@ -10,14 +10,15 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-const systemConfigPath = "/etc/wormhole/cli/wh.toml"
+const systemConfigPath = "/etc/wormhole/cli.toml"
 
 // Run performs the two-pass bootstrap:
 //  1. Parse --config and --nodefaults (silently ignoring other args).
 //  2. Load TOML files into MapSources, returning them for the flag Sources chain.
 //
 // The logger is owned by main.go and passed in via ctx.
-func Run(ctx context.Context) ([]cli.MapSource, error) {
+// The cmdArgs parameter should be os.Args (or a test-supplied slice).
+func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 	var Configs []string
 	var NoDefaults bool
 
@@ -38,12 +39,12 @@ func Run(ctx context.Context) ([]cli.MapSource, error) {
 			},
 			&cli.BoolFlag{
 				Name:        "nodefaults",
-				Usage:       "Skip system config at /etc/wormhole/cli/wh.toml",
+				Usage:       "Skip system config at " + systemConfigPath,
 				Destination: &NoDefaults,
 			},
 		},
 	}
-	if err := bootstrap.Run(ctx, os.Args); err != nil {
+	if err := bootstrap.Run(ctx, cmdArgs); err != nil {
 		return nil, err
 	}
 
@@ -69,7 +70,9 @@ func Run(ctx context.Context) ([]cli.MapSource, error) {
 
 	// Reverse so user configs take precedence over system config.
 	// ValueSourceChain.Lookup() returns the first source with a value,
-	// so earlier entries win. User configs come first, system config last.
+	// so earlier entries win. After reversal, user configs come first
+	// and system config comes last; user configs win when both define
+	// the same key.
 	slices.Reverse(mapSrcs)
 
 	return mapSrcs, nil

@@ -375,17 +375,17 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 	}
 
 	// create errgroup for managing goroutines
-	eg, egCtx := errgroup.WithContext(ctx)
+	g, gCtx := errgroup.WithContext(ctx)
 
 	// launch internal airlock sub component
 	// TODO: investigate if we can do this without opening an external port for airlock
-	err = launchAirlock(eg, egCtx, token, airlockConfig, verbose)
+	err = launchAirlock(g, gCtx, token, airlockConfig, verbose)
 	if err != nil {
 		return fmt.Errorf("airlock error: %w", err)
 	}
 
 	// launch internal piko relay and point it at airlock
-	err = launchPiko(eg, egCtx, routeData.Tunnel.JWT, routeData.Tunnel.URL, routeData.Tunnel.EndpointID, airlockConfig.Addr, verbose)
+	err = launchPiko(g, gCtx, routeData.Tunnel.JWT, routeData.Tunnel.URL, routeData.Tunnel.EndpointID, airlockConfig.Addr, verbose)
 	if err != nil {
 		return fmt.Errorf("piko error: %w", err)
 	}
@@ -394,14 +394,14 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 	log.Printf("URL: %s\n", routeData.Url)
 
 	done := doAsync(func() error {
-		if err := eg.Wait(); err != nil {
+		if err := g.Wait(); err != nil {
 			return fmt.Errorf("wormhole error: %w", err)
 		}
 		return nil
 	})
 
 	select {
-	case <-egCtx.Done():
+	case <-gCtx.Done():
 		// remove SIGINT if airlock switches to accepting context cancellation
 		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 		for {

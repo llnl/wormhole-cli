@@ -34,15 +34,23 @@ func TOMLMapSource(path string) (cli.MapSource, error) {
 	if err != nil {
 		return nil, err
 	}
-	var raw map[string]any
-	if err := toml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", path, err)
-	}
-	return cli.NewMapSource(path, convertTopLevel(raw)), nil
+	return ParseTOML(data, path)
 }
 
-// convertTopLevel converts a map[string]any to map[any]any. Nested maps
-// are left as-is since MapSource.Lookup() handles both types.
+// ParseTOML parses TOML data and returns a MapSource for use in a
+// ValueSourceChain. The name parameter is used as the MapSource name.
+func ParseTOML(data []byte, name string) (cli.MapSource, error) {
+	var raw map[string]any
+	if err := toml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", name, err)
+	}
+	return cli.NewMapSource(name, convertTopLevel(raw)), nil
+}
+
+// convertTopLevel converts map[string]any to map[any]any. This is required
+// by cli.MapSource. Nested maps are handled transparently by
+// MapSource.Lookup(), but our single-level [defaults] TOML format does not
+// produce nested values at the top level, so recursion is not needed.
 func convertTopLevel(m map[string]any) map[any]any {
 	r := make(map[any]any, len(m))
 	for k, v := range m {

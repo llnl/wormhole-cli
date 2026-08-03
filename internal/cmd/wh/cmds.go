@@ -16,8 +16,6 @@ import (
 	"github.com/llnl/wormhole-cli/internal/version"
 )
 
-var StopOnNthArg int = 1
-
 type globalHandler func(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error
 
 func Tasks(a *args.CLIArgs, srcs ...cli.MapSource) *cli.Command {
@@ -34,6 +32,7 @@ func Tasks(a *args.CLIArgs, srcs ...cli.MapSource) *cli.Command {
 }
 
 func openCmd(a *args.CLIArgs, srcs []cli.MapSource) *cli.Command {
+	stopOnNthArg := 1
 	usage := "Open a new wormhole to proxy from a local app.\nIf a command is specified, launches the provided command in a new network namespace with wormhole forwarding."
 	usageText := "wh open [options] [--] [command [options ...]]"
 
@@ -50,7 +49,7 @@ func openCmd(a *args.CLIArgs, srcs []cli.MapSource) *cli.Command {
 		UsageText:    usageText,
 		Action:       globalWrap(a, handleOpen),
 		Flags:        args.OpenFlags(a, srcs...),
-		StopOnNthArg: &StopOnNthArg,
+		StopOnNthArg: &stopOnNthArg,
 	}
 }
 
