@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v3"
 
-	"github.com/llnl/wormhole-cli/test/testhelpers"
+	"github.com/llnl/wormhole-cli/test/testutil"
 )
 
 // buildTestCommand creates a minimal cli.Command with a single flag
@@ -50,13 +50,13 @@ func TestIntegration_ValueSourceChain(t *testing.T) {
 		expected     string
 		tomlContent2 string // second TOML for multi-source test
 	}{
-		{"env overrides TOML", testhelpers.TOMLEntry("endpoint", tomlEndpoint), envURL, nil, envURL, ""},
-		{"TOML default used", testhelpers.TOMLEntry("endpoint", tomlEndpoint), "", nil, tomlEndpoint, ""},
-		{"CLI overrides TOML", testhelpers.TOMLEntry("endpoint", tomlEndpoint), "", []string{"--endpoint", cliURL}, cliURL, ""},
-		{"CLI overrides env", testhelpers.TOMLEntry("endpoint", tomlEndpoint), envURL, []string{"--endpoint", cliURL}, cliURL, ""},
-		{"env overrides TOML no CLI", testhelpers.TOMLEntry("endpoint", tomlEndpoint), envURL, nil, envURL, ""},
-		{"multiple TOML user wins", testhelpers.TOMLEntry("endpoint", userURL), "", nil, userURL, testhelpers.TOMLEntry("endpoint", sysURL)},
-		{"second TOML provides missing key", testhelpers.TOMLEntry("app-port", 9090), "", nil, sysURL, testhelpers.TOMLEntry("endpoint", sysURL)},
+		{"env overrides TOML", testutil.TOMLEntry("endpoint", tomlEndpoint), envURL, nil, envURL, ""},
+		{"TOML default used", testutil.TOMLEntry("endpoint", tomlEndpoint), "", nil, tomlEndpoint, ""},
+		{"CLI overrides TOML", testutil.TOMLEntry("endpoint", tomlEndpoint), "", []string{"--endpoint", cliURL}, cliURL, ""},
+		{"CLI overrides env", testutil.TOMLEntry("endpoint", tomlEndpoint), envURL, []string{"--endpoint", cliURL}, cliURL, ""},
+		{"env overrides TOML no CLI", testutil.TOMLEntry("endpoint", tomlEndpoint), envURL, nil, envURL, ""},
+		{"multiple TOML user wins", testutil.TOMLEntry("endpoint", userURL), "", nil, userURL, testutil.TOMLEntry("endpoint", sysURL)},
+		{"second TOML provides missing key", testutil.TOMLEntry("app-port", 9090), "", nil, sysURL, testutil.TOMLEntry("endpoint", sysURL)},
 	}
 	for _, tt := range tests {
 		tt := tt

@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/llnl/wormhole-cli/test/testhelpers"
+	"github.com/llnl/wormhole-cli/test/testutil"
 )
 
 func writeTOML(t *testing.T, dir, name, content string) string {
@@ -60,7 +60,7 @@ func TestRun_SingleUserConfig(t *testing.T) {
 		wantOK  bool
 	}{
 		{
-			"reads endpoint", testhelpers.TOMLEntry("endpoint", "http://user"), "http://user", true,
+			"reads endpoint", testutil.TOMLEntry("endpoint", "http://user"), "http://user", true,
 		},
 		{
 			"empty file has no keys", ``, "", false,
@@ -88,8 +88,8 @@ func TestRun_SingleUserConfig(t *testing.T) {
 func TestRun_MultipleUserConfigs(t *testing.T) {
 	t.Run("second wins", func(t *testing.T) {
 		dir := t.TempDir()
-		cfg1 := writeTOML(t, dir, "first.toml", testhelpers.TOMLEntry("endpoint", "http://first"))
-		cfg2 := writeTOML(t, dir, "second.toml", testhelpers.TOMLEntry("endpoint", "http://second"))
+		cfg1 := writeTOML(t, dir, "first.toml", testutil.TOMLEntry("endpoint", "http://first"))
+		cfg2 := writeTOML(t, dir, "second.toml", testutil.TOMLEntry("endpoint", "http://second"))
 
 		srcs, err := Run(context.Background(), bootstrapArgs("--config", cfg1, "--config", cfg2))
 		assert.NoError(t, err)
@@ -104,7 +104,7 @@ func TestRun_MultipleUserConfigs(t *testing.T) {
 
 func TestRun_UnknownFlag_Ignored(t *testing.T) {
 	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "user.toml", testhelpers.TOMLEntry("endpoint", "http://user"))
+	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("endpoint", "http://user"))
 
 	// --bogus is not a recognized bootstrap flag; OnUsageError returns nil
 	// so it's silently ignored and processing continues to file loading.
