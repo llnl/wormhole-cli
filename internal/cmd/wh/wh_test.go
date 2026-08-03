@@ -43,7 +43,9 @@ func TestTasks_Structure(t *testing.T) {
 			}
 		}
 		assert.NotNil(t, openCmd)
-		assert.NotEmpty(t, openCmd.Flags, "open should have flags")
+
+		expectedFlags := args.OpenFlags(a)
+		assert.Len(t, openCmd.Flags, len(expectedFlags), "open subcommand flags should match OpenFlags output")
 	})
 
 	t.Run("community subcommands", func(t *testing.T) {
@@ -95,10 +97,9 @@ func newTestCLIArgs() *args.CLIArgs {
 	}
 }
 
-// setupWrap returns a pre-configured CLIArgs, context with logger, and a
-// pointer to a captured value slot. The logger starts at Warn level; set
-// a.Global.Verbose to true to enable Info level.
-func setupWrap(t *testing.T) (context.Context, *args.CLIArgs, *any, *logctx.ContextLogger) {
+// setupWrap returns a pre-configured CLIArgs and context with logger.
+// The logger starts at Warn level; set a.Global.Verbose to true to enable Info level.
+func setupWrap(t *testing.T) (context.Context, *args.CLIArgs, *logctx.ContextLogger) {
 	t.Helper()
 	a := newTestCLIArgs()
 
@@ -108,62 +109,51 @@ func setupWrap(t *testing.T) (context.Context, *args.CLIArgs, *any, *logctx.Cont
 	cl := logctx.New(logger, levelVar)
 	ctx := logctx.WithLogger(context.Background(), cl)
 
-	var captured any
-	return ctx, a, &captured, cl
+	return ctx, a, cl
 }
 
 func TestGlobalWrap_BasicBehavior(t *testing.T) {
-	tests := []struct {
-		name     string
-		verbose  bool
-		validate func(a *args.CLIArgs, cl *logctx.ContextLogger) any
-		expected any
-	}{
-		{
-			"reads endpoint", false,
-			func(a *args.CLIArgs, cl *logctx.ContextLogger) any { return a.Global.Endpoint },
-			"http://test-endpoint",
-		},
-		{
-			"reads token", false,
-			func(a *args.CLIArgs, cl *logctx.ContextLogger) any { return a.Global.Token },
-			"test-token",
-		},
-		{
-			"verbose sets info level", true,
-			func(a *args.CLIArgs, cl *logctx.ContextLogger) any {
-				level, _ := cl.GetLogLevel()
-				return *level
-			},
-			slog.LevelInfo,
-		},
-		{
-			"non-verbose keeps warn", false,
-			func(a *args.CLIArgs, cl *logctx.ContextLogger) any {
-				level, _ := cl.GetLogLevel()
-				return *level
-			},
-			slog.LevelWarn,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, a, captured, cl := setupWrap(t)
-			a.Global.Verbose = tt.verbose
+	t.Run("reads endpoint and token", func(t *testing.T) {
+		ctx, a, _ := setupWrap(t)
 
-			wrapped := globalWrap(a, func(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
-				*captured = tt.validate(a, cl)
-				return nil
-			})
-			cli.ActionFunc(wrapped)(ctx, &cli.Command{})
-			assert.Equal(t, tt.expected, *captured)
+		wrapped := globalWrap(a, func(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
+			return nil
 		})
-	}
+		cli.ActionFunc(wrapped)(ctx, &cli.Command{})
+
+		assert.Equal(t, "http://test-endpoint", a.Global.Endpoint)
+		assert.Equal(t, "test-token", a.Global.Token)
+	})
+
+	t.Run("verbose sets info level", func(t *testing.T) {
+		ctx, a, cl := setupWrap(t)
+		a.Global.Verbose = true
+
+		wrapped := globalWrap(a, func(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
+			return nil
+		})
+		cli.ActionFunc(wrapped)(ctx, &cli.Command{})
+
+		level, _ := cl.GetLogLevel()
+		assert.Equal(t, slog.LevelInfo, *level)
+	})
+
+	t.Run("non-verbose keeps warn", func(t *testing.T) {
+		ctx, a, cl := setupWrap(t)
+		a.Global.Verbose = false
+
+		wrapped := globalWrap(a, func(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
+			return nil
+		})
+		cli.ActionFunc(wrapped)(ctx, &cli.Command{})
+
+		level, _ := cl.GetLogLevel()
+		assert.Equal(t, slog.LevelWarn, *level)
+	})
 }
 
 func TestGlobalWrap_RegistryClientCreated(t *testing.T) {
-	ctx, a, captured, _ := setupWrap(t)
+	ctx, a, _ := setupWrap(t)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -172,10 +162,11 @@ func TestGlobalWrap_RegistryClientCreated(t *testing.T) {
 
 	a.Global.Endpoint = server.URL
 
+	var registryOK bool
 	wrapped := globalWrap(a, func(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
-		*captured = registry != nil
+		registryOK = registry != nil
 		return nil
 	})
 	cli.ActionFunc(wrapped)(ctx, &cli.Command{})
-	assert.True(t, (*captured).(bool))
+	assert.True(t, registryOK)
 }

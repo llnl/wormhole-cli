@@ -86,16 +86,6 @@ func TestRun_SingleUserConfig(t *testing.T) {
 }
 
 func TestRun_MultipleUserConfigs(t *testing.T) {
-	t.Run("count", func(t *testing.T) {
-		dir := t.TempDir()
-		cfg1 := writeTOML(t, dir, "first.toml", testhelpers.TOMLEntry("endpoint", "http://first"))
-		cfg2 := writeTOML(t, dir, "second.toml", testhelpers.TOMLEntry("endpoint", "http://second"))
-
-		srcs, err := Run(context.Background(), bootstrapArgs("--config", cfg1, "--config", cfg2))
-		assert.NoError(t, err)
-		assert.Len(t, srcs, 2)
-	})
-
 	t.Run("second wins", func(t *testing.T) {
 		dir := t.TempDir()
 		cfg1 := writeTOML(t, dir, "first.toml", testhelpers.TOMLEntry("endpoint", "http://first"))

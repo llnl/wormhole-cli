@@ -101,3 +101,32 @@ func TestIntegration_RequiredFlagMissing(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{"test"})
 	assert.Error(t, err)
 }
+
+// buildRequiredFlagCommand creates a command with a single required flag
+// that uses flagSources for value resolution. Used to test that the
+// required-flag enforcement works even when sources are present.
+func buildRequiredFlagCommand(t *testing.T, srcs ...cli.MapSource) *cli.Command {
+	t.Helper()
+	flag := &cli.StringFlag{
+		Name:     "endpoint",
+		Required: true,
+		Sources:  flagSources("endpoint", srcs...),
+	}
+	return &cli.Command{
+		Name:   "test",
+		Flags:  []cli.Flag{flag},
+		Action: func(ctx context.Context, c *cli.Command) error { return nil },
+	}
+}
+
+// Tests that a required flag with sources but no value provided through
+// any source (env, TOML, CLI) still returns an error. Complements
+// TestIntegration_RequiredFlagMissing which tests a required flag with
+// no sources at all.
+func TestIntegration_RequiredFlagMissing_WithSources(t *testing.T) {
+	ms, _ := ParseTOML([]byte("[defaults]"), "empty")
+	cmd := buildRequiredFlagCommand(t, ms)
+	err := cmd.Run(context.Background(), []string{"test"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "endpoint")
+}

@@ -47,10 +47,9 @@ func ParseTOML(data []byte, name string) (cli.MapSource, error) {
 	return cli.NewMapSource(name, convertTopLevel(raw)), nil
 }
 
-// convertTopLevel converts map[string]any to map[any]any. This is required
-// by cli.MapSource. Nested maps are handled transparently by
-// MapSource.Lookup(), but our single-level [defaults] TOML format does not
-// produce nested values at the top level, so recursion is not needed.
+// convertTopLevel adapts map[string]any to map[any]any for cli.MapSource.
+// Nesting is handled at lookup time by MapSource.Lookup(), and our TOML
+// format has no nested maps at the top level, so recursion is unnecessary.
 func convertTopLevel(m map[string]any) map[any]any {
 	r := make(map[any]any, len(m))
 	for k, v := range m {

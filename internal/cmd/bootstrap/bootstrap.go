@@ -19,8 +19,8 @@ const systemConfigPath = "/etc/wormhole/cli.toml"
 // The logger is owned by main.go and passed in via ctx.
 // The cmdArgs parameter should be os.Args (or a test-supplied slice).
 func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
-	var Configs []string
-	var NoDefaults bool
+	var configs []string
+	var noDefaults bool
 
 	bootstrap := &cli.Command{
 		HideHelp: true,
@@ -35,12 +35,12 @@ func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 			&cli.StringSliceFlag{
 				Name:        "config",
 				Usage:       "Path to a wh.toml configuration file (repeatable, layered after system config)",
-				Destination: &Configs,
+				Destination: &configs,
 			},
 			&cli.BoolFlag{
 				Name:        "nodefaults",
 				Usage:       "Skip system config at " + systemConfigPath,
-				Destination: &NoDefaults,
+				Destination: &noDefaults,
 			},
 		},
 	}
@@ -49,7 +49,7 @@ func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 	}
 
 	var mapSrcs []cli.MapSource
-	if !NoDefaults {
+	if !noDefaults {
 		if ms, err := args.TOMLMapSource(systemConfigPath); err != nil {
 			// System config is optional: missing file is not an error,
 			// but parse errors and permission failures are fatal.
@@ -60,7 +60,7 @@ func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 			mapSrcs = append(mapSrcs, ms)
 		}
 	}
-	for _, path := range Configs {
+	for _, path := range configs {
 		ms, err := args.TOMLMapSource(path)
 		if err != nil {
 			return nil, fmt.Errorf("config %s: %w", path, err)
