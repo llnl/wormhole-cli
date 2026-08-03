@@ -27,7 +27,6 @@ func TestFlagSources_BasicProperties(t *testing.T) {
 			{"auth-bearer-header", "WORMHOLE_AUTH_BEARER_HEADER"},
 		}
 		for _, tt := range tests {
-			tt := tt
 			t.Run(tt.flagName, func(t *testing.T) {
 				chain := flagSources(tt.flagName)
 				envSrc, ok := chain.Chain[0].(cli.EnvValueSource)
@@ -87,7 +86,6 @@ func TestTOMLMapSource_ValueTypes(t *testing.T) {
 		{"string", "[defaults]\nname = \"myapp\"", "defaults.name", "myapp", true},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ms, err := ParseTOML([]byte(tt.content), "test")
 			assert.NoError(t, err)
@@ -137,7 +135,6 @@ func TestFlagSources_Resolution(t *testing.T) {
 		{"env resolves without map source", "from-env", "", "from-env"},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envVal != "" {
 				t.Setenv("WORMHOLE_TEST_FLAG", tt.envVal)

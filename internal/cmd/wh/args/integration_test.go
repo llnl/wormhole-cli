@@ -59,7 +59,6 @@ func TestIntegration_ValueSourceChain(t *testing.T) {
 		{"second TOML provides missing key", testutil.TOMLEntry("app-port", 9090), "", nil, sysURL, testutil.TOMLEntry("endpoint", sysURL)},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var srcs []cli.MapSource
 			if tt.tomlContent2 != "" {

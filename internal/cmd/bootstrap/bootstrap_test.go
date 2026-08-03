@@ -38,7 +38,6 @@ func TestRun_EmptySrcs(t *testing.T) {
 		{"missing system config", nil, true, 0},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			args := bootstrapArgs(tt.args...)
 			srcs, err := Run(context.Background(), args)
@@ -67,7 +66,6 @@ func TestRun_SingleUserConfig(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfg := writeTOML(t, dir, "user.toml", tt.content)
