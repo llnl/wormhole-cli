@@ -16,14 +16,12 @@ func BootstrapFlags(configs *[]string, noDefaults *bool) []cli.Flag {
 			Name:        configName,
 			Usage:       "Path to a wh.toml configuration file (repeatable, layered after system config)",
 			Destination: configs,
-			Hidden:      true,
 			Sources:     cli.EnvVars(envPrefix + "CONFIG"),
 		},
 		&cli.BoolFlag{
 			Name:        noDefaultsName,
 			Usage:       "Skip system config at /etc/wormhole/cli.toml",
 			Destination: noDefaults,
-			Hidden:      true,
 			Sources:     cli.EnvVars(envPrefix + "NODEFAULTS"),
 		},
 	}
