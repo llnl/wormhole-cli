@@ -44,8 +44,15 @@ func TestTasks_Structure(t *testing.T) {
 		}
 		assert.NotNil(t, openCmd)
 
-		expectedFlags := args.OpenFlags(a)
-		assert.Len(t, openCmd.Flags, len(expectedFlags), "open subcommand flags should match OpenFlags output")
+		names := make(map[string]bool)
+		for _, f := range openCmd.Flags {
+			for _, n := range f.Names() {
+				names[n] = true
+			}
+		}
+		for _, expected := range []string{"name", "community", "app-port", "allowed-users", "allowed-groups", "forbidden-users", "forbidden-groups", "forwarded-header-user", "forwarded-header-groups"} {
+			assert.True(t, names[expected], "missing open flag %q", expected)
+		}
 	})
 
 	t.Run("community subcommands", func(t *testing.T) {

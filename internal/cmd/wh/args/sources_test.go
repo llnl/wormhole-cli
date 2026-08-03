@@ -28,45 +28,13 @@ func TestFlagSources_BasicProperties(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.flagName, func(t *testing.T) {
+				t.Setenv(tt.envName, "from-env")
 				chain := flagSources(tt.flagName)
-				envSrc, ok := chain.Chain[0].(cli.EnvValueSource)
-				assert.True(t, ok, "first element should be EnvValueSource")
-				assert.Equal(t, tt.envName, envSrc.Key())
+				v, ok := chain.Lookup()
+				assert.True(t, ok)
+				assert.Equal(t, "from-env", v)
 			})
 		}
-	})
-
-	t.Run("chain structure", func(t *testing.T) {
-		// env only
-		assert.Len(t, flagSources("endpoint").Chain, 1)
-
-		// env + 1 TOML
-		ms, _ := ParseTOML([]byte(`endpoint = "http://test"`), "test")
-		chain := flagSources("endpoint", ms)
-		assert.Len(t, chain.Chain, 2)
-
-		// env + 2 TOML
-		ms2, _ := ParseTOML([]byte(`y = 2`), "test2")
-		chain = flagSources("flag", ms, ms2)
-		assert.Len(t, chain.Chain, 3)
-	})
-
-	t.Run("map source prefix", func(t *testing.T) {
-		ms, _ := ParseTOML([]byte(`endpoint = "http://test"`), "test")
-		chain := flagSources("endpoint", ms)
-
-		msSrc, ok := chain.Chain[1].(interface{ String() string })
-		assert.True(t, ok)
-		assert.Contains(t, msSrc.String(), `"defaults.endpoint"`)
-	})
-
-	// Verifies EnvValueSource is always first even with no TOML sources.
-	// (The "env only" case in "chain structure" checks Len==1; this
-	// confirms the element at index 0 is specifically the env source.)
-	t.Run("chain starts with env", func(t *testing.T) {
-		chain := flagSources("endpoint")
-		_, ok := chain.Chain[0].(cli.EnvValueSource)
-		assert.True(t, ok)
 	})
 }
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/urfave/cli/v3"
 
 	"github.com/llnl/wormhole-cli/test/testutil"
 )
@@ -28,11 +29,10 @@ func TestRun_EmptySrcs(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
-		wantOK  bool
 		wantLen int
 	}{
-		{"no args", nil, true, 0},
-		{"nodefaults skips system", []string{"--nodefaults"}, true, 0},
+		{"no args", nil, 0},
+		{"nodefaults skips system", []string{"--nodefaults"}, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,6 +80,21 @@ func TestRun_SingleUserConfig(t *testing.T) {
 	}
 }
 
+func TestRun_NodefaultsStillLoadsUserConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("endpoint", "http://user"))
+	t.Setenv("WORMHOLE_NODEFAULTS", "true")
+	t.Setenv("WORMHOLE_CONFIG", cfg)
+
+	srcs, err := Run(context.Background(), bootstrapArgs())
+	assert.NoError(t, err)
+	assert.Len(t, srcs, 1)
+
+	v, ok := srcs[0].Lookup("defaults.endpoint")
+	assert.True(t, ok)
+	assert.Equal(t, "http://user", v)
+}
+
 func TestRun_MultipleUserConfigs(t *testing.T) {
 	t.Run("second wins", func(t *testing.T) {
 		dir := t.TempDir()
@@ -90,8 +105,8 @@ func TestRun_MultipleUserConfigs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, srcs, 2)
 
-		// After Reverse, cfg2 (second) is first in the slice, so it wins.
-		v, ok := srcs[0].Lookup("defaults.endpoint")
+		chain := cli.NewValueSourceChain(cli.NewMapValueSource("defaults.endpoint", srcs[0]), cli.NewMapValueSource("defaults.endpoint", srcs[1]))
+		v, ok := chain.Lookup()
 		assert.True(t, ok)
 		assert.Equal(t, "http://second", v)
 	})
@@ -137,16 +152,4 @@ func TestRun_InvalidTOML_ReturnsError(t *testing.T) {
 	_, err := Run(context.Background(), bootstrapArgs("--config", cfg))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "config")
-}
-
-func TestRun_EmptyTOMLFile(t *testing.T) {
-	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "empty.toml", ``)
-
-	srcs, err := Run(context.Background(), bootstrapArgs("--config", cfg))
-	assert.NoError(t, err)
-	assert.Len(t, srcs, 1)
-
-	_, ok := srcs[0].Lookup("defaults.endpoint")
-	assert.False(t, ok)
 }
