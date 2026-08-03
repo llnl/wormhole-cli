@@ -31,18 +31,7 @@ func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 			return nil
 		},
 		Action: func(ctx context.Context, c *cli.Command) error { return nil },
-		Flags: []cli.Flag{
-			&cli.StringSliceFlag{
-				Name:        "config",
-				Usage:       "Path to a wh.toml configuration file (repeatable, layered after system config)",
-				Destination: &configs,
-			},
-			&cli.BoolFlag{
-				Name:        "nodefaults",
-				Usage:       "Skip system config at " + systemConfigPath,
-				Destination: &noDefaults,
-			},
-		},
+		Flags:  args.BootstrapFlags(&configs, &noDefaults),
 	}
 	if err := bootstrap.Run(ctx, cmdArgs); err != nil {
 		return nil, err

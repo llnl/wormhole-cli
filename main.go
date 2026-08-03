@@ -40,8 +40,13 @@ func main() {
 
 	// Pass 2: build the CLI command tree with TOML-sourced flags and run.
 	cliArgs := &args.CLIArgs{}
+	var bootstrapConfigs []string
+	var bootstrapNoDefaults bool
 	app := wh.Tasks(cliArgs, srcs...)
-	app.Flags = args.GlobalFlags(cliArgs, srcs...)
+	app.Flags = append(
+		args.GlobalFlags(cliArgs, srcs...),
+		args.BootstrapFlags(&bootstrapConfigs, &bootstrapNoDefaults)...,
+	)
 
 	if err := app.Run(lCtx, os.Args); err != nil {
 		log.Fatalln(err)

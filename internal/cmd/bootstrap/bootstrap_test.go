@@ -108,6 +108,28 @@ func TestRun_UnknownFlag_Ignored(t *testing.T) {
 	assert.Len(t, srcs, 1)
 }
 
+func TestRun_ConfigFromEnv(t *testing.T) {
+	dir := t.TempDir()
+	cfg := writeTOML(t, dir, "env.toml", testutil.TOMLEntry("endpoint", "http://env"))
+	t.Setenv("WORMHOLE_CONFIG", cfg)
+
+	srcs, err := Run(context.Background(), bootstrapArgs())
+	assert.NoError(t, err)
+	assert.Len(t, srcs, 1)
+
+	v, ok := srcs[0].Lookup("defaults.endpoint")
+	assert.True(t, ok)
+	assert.Equal(t, "http://env", v)
+}
+
+func TestRun_NoDefaultsFromEnv(t *testing.T) {
+	t.Setenv("WORMHOLE_NODEFAULTS", "true")
+
+	srcs, err := Run(context.Background(), bootstrapArgs())
+	assert.NoError(t, err)
+	assert.Len(t, srcs, 0)
+}
+
 func TestRun_InvalidTOML_ReturnsError(t *testing.T) {
 	dir := t.TempDir()
 	cfg := writeTOML(t, dir, "bad.toml", `endpoint = {{{invalid`)
