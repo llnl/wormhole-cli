@@ -35,9 +35,14 @@ type KV struct {
 	Table string
 }
 
-// TOMLEntry formats a single key-value pair as a TOML entry under the specified table.
-func TOMLEntry(table, key string, value any) string {
-	tables := buildTableMap(KV{Key: key, Value: value, Table: table})
+// TOMLConfig generates TOML for a table with the given name and key-value pairs.
+func TOMLConfig(table string, kvs ...KV) string {
+	for i := range kvs {
+		if kvs[i].Table == "" {
+			kvs[i].Table = table
+		}
+	}
+	tables := buildTableMap(kvs...)
 	data, err := toml.Marshal(tables)
 	if err != nil {
 		panic(fmt.Sprintf("toml.Marshal failed: %v", err))
@@ -61,18 +66,4 @@ func buildTableMap(entries ...KV) map[string]map[string]any {
 	return tables
 }
 
-// TOMLTable generates TOML for a table with the given name and entries.
-// Entries with an empty Table field use the specified table name.
-func TOMLTable(table string, entries ...KV) string {
-	for i := range entries {
-		if entries[i].Table == "" {
-			entries[i].Table = table
-		}
-	}
-	tables := buildTableMap(entries...)
-	data, err := toml.Marshal(tables)
-	if err != nil {
-		panic(fmt.Sprintf("toml.Marshal failed: %v", err))
-	}
-	return string(data)
-}
+

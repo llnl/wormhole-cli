@@ -17,21 +17,27 @@ import (
 // For integration coverage of the same value source chain through
 // cli.Command.Run(), see integration_test.go.
 
+var testTableAll = testutil.TOMLConfig(testutil.DefaultTable,
+	testutil.KV{Key: "endpoint", Value: "http://x"},
+	testutil.KV{Key: "app-port", Value: 9090},
+	testutil.KV{Key: "name", Value: "myapp"},
+	testutil.KV{Key: "verbose", Value: true},
+)
+
 func TestFlagSources_BasicProperties(t *testing.T) {
 	t.Run("env var name conversion", func(t *testing.T) {
-		tests := []struct {
-			flagName string
-			envName  string
+		tests := map[string]struct {
+			envName string
 		}{
-			{"endpoint", "WORMHOLE_ENDPOINT"},
-			{"app-port", "WORMHOLE_APP_PORT"},
-			{"allowed-users", "WORMHOLE_ALLOWED_USERS"},
-			{"auth-bearer-header", "WORMHOLE_AUTH_BEARER_HEADER"},
+			"endpoint":           {envName: "WORMHOLE_ENDPOINT"},
+			"app-port":           {envName: "WORMHOLE_APP_PORT"},
+			"allowed-users":      {envName: "WORMHOLE_ALLOWED_USERS"},
+			"auth-bearer-header": {envName: "WORMHOLE_AUTH_BEARER_HEADER"},
 		}
-		for _, tt := range tests {
-			t.Run(tt.flagName, func(t *testing.T) {
+		for name, tt := range tests {
+			t.Run(name, func(t *testing.T) {
 				t.Setenv(tt.envName, "from-env")
-				chain := flagSources(tt.flagName)
+				chain := flagSources(name)
 				v, ok := chain.Lookup()
 				assert.True(t, ok)
 				assert.Equal(t, "from-env", v)
@@ -41,22 +47,51 @@ func TestFlagSources_BasicProperties(t *testing.T) {
 }
 
 func TestTOMLMapSource_ValueTypes(t *testing.T) {
-	tests := []struct {
-		name    string
+	tests := map[string]struct {
 		content string
 		key     string
 		wantVal any
 		wantOK  bool
 	}{
-		{"flat keys", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "endpoint", Value: "http://x"}), testutil.DefaultTable + ".endpoint", "http://x", true},
-		{"nested defaults", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "app-port", Value: 9090}, testutil.KV{Key: "name", Value: "myapp"}), testutil.DefaultTable + ".app-port", int64(9090), true},
-		{"empty file", "", testutil.DefaultTable + ".anything", nil, false},
-		{"boolean", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "verbose", Value: true}), testutil.DefaultTable + ".verbose", true, true},
-		{"integer", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "app-port", Value: 9090}), testutil.DefaultTable + ".app-port", int64(9090), true},
-		{"string", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "name", Value: "myapp"}), testutil.DefaultTable + ".name", "myapp", true},
+		"flat keys": {
+			content: testTableAll,
+			key:     testutil.DefaultTable + ".endpoint",
+			wantVal: "http://x",
+			wantOK:  true,
+		},
+		"nested defaults": {
+			content: testTableAll,
+			key:     testutil.DefaultTable + ".app-port",
+			wantVal: int64(9090),
+			wantOK:  true,
+		},
+		"empty file": {
+			content: "",
+			key:     testutil.DefaultTable + ".anything",
+			wantVal: nil,
+			wantOK:  false,
+		},
+		"boolean": {
+			content: testTableAll,
+			key:     testutil.DefaultTable + ".verbose",
+			wantVal: true,
+			wantOK:  true,
+		},
+		"integer": {
+			content: testTableAll,
+			key:     testutil.DefaultTable + ".app-port",
+			wantVal: int64(9090),
+			wantOK:  true,
+		},
+		"string": {
+			content: testTableAll,
+			key:     testutil.DefaultTable + ".name",
+			wantVal: "myapp",
+			wantOK:  true,
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			ms, err := ParseTOML([]byte(tt.content), "test")
 			assert.NoError(t, err)
 			v, ok := ms.Lookup(tt.key)
@@ -94,18 +129,29 @@ func TestTOMLMapSource_InvalidTOML(t *testing.T) {
 // and chain.Lookup(). For integration coverage through cli.Command.Run(),
 // see TestIntegration_ValueSourceChain in integration_test.go.
 func TestFlagSources_Resolution(t *testing.T) {
-	tests := []struct {
-		name     string
+	tests := map[string]struct {
 		envVal   string
 		tomlVal  string
 		expected string
 	}{
-		{"env overrides map source", "from-env", "from-toml", "from-env"},
-		{"map source wins when no env", "", "from-toml", "from-toml"},
-		{"env resolves without map source", "from-env", "", "from-env"},
+		"env overrides map source": {
+			envVal:   "from-env",
+			tomlVal:  "from-toml",
+			expected: "from-env",
+		},
+		"map source wins when no env": {
+			envVal:   "",
+			tomlVal:  "from-toml",
+			expected: "from-toml",
+		},
+		"env resolves without map source": {
+			envVal:   "from-env",
+			tomlVal:  "",
+			expected: "from-env",
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			if tt.envVal != "" {
 				t.Setenv("WORMHOLE_TEST_FLAG", tt.envVal)
 			} else {
@@ -114,7 +160,7 @@ func TestFlagSources_Resolution(t *testing.T) {
 
 			var srcs []cli.MapSource
 			if tt.tomlVal != "" {
-				ms, _ := ParseTOML([]byte(testutil.TOMLTable("defaults", testutil.KV{Key: "test-flag", Value: tt.tomlVal})), "test")
+				ms, _ := ParseTOML([]byte(testutil.TOMLConfig("defaults", testutil.KV{Key: "test-flag", Value: tt.tomlVal})), "test")
 				srcs = []cli.MapSource{ms}
 			}
 

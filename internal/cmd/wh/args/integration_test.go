@@ -29,44 +29,75 @@ func buildTestCommand(t *testing.T, flagName string, dest *string, srcs ...cli.M
 	}
 }
 
+var (
+	tomlEndpointSys  = testutil.TOMLConfig("defaults", testutil.KV{Key: "endpoint", Value: "http://sys"})
+	tomlEndpointUser = testutil.TOMLConfig("defaults", testutil.KV{Key: "endpoint", Value: "http://user"})
+	tomlEndpointTest = testutil.TOMLConfig("defaults", testutil.KV{Key: "endpoint", Value: "http://test"})
+	tomlTest         = testutil.TOMLConfig("defaults", testutil.KV{Key: "app-port", Value: 9090})
+)
+
 // Tests value source chain resolution through the full cli.Command.Run()
 // pipeline. Complements TestFlagSources_Resolution in sources_test.go
 // by covering the same env > TOML logic plus CLI arg override and
 // multi-source precedence via the actual flag resolution path.
 func TestIntegration_ValueSourceChain(t *testing.T) {
 	const (
-		tomlEndpoint = "http://toml"
-		envURL       = "http://env"
-		cliURL       = "http://cli"
-		sysURL       = "http://sys"
-		userURL      = "http://user"
+		testURL = "http://test"
+		envURL  = "http://env"
+		cliURL  = "http://cli"
+		sysURL  = "http://sys"
+		userURL = "http://user"
 	)
 
-	tests := []struct {
-		name         string
-		tomlContent  string
-		envVal       string
-		cliArgs      []string
-		expected     string
-		tomlContent2 string // second TOML for multi-source test
+	tests := map[string]struct {
+		tomlContent []string
+		envVal      string
+		cliArgs     []string
+		expected    string
 	}{
-		{"env overrides TOML", testutil.TOMLEntry("defaults", "endpoint", tomlEndpoint), envURL, nil, envURL, ""},
-		{"TOML default used", testutil.TOMLEntry("defaults", "endpoint", tomlEndpoint), "", nil, tomlEndpoint, ""},
-		{"CLI overrides TOML", testutil.TOMLEntry("defaults", "endpoint", tomlEndpoint), "", []string{"--endpoint", cliURL}, cliURL, ""},
-		{"CLI overrides env", testutil.TOMLEntry("defaults", "endpoint", tomlEndpoint), envURL, []string{"--endpoint", cliURL}, cliURL, ""},
-		{"multiple TOML user wins", testutil.TOMLEntry("defaults", "endpoint", userURL), "", nil, userURL, testutil.TOMLEntry("defaults", "endpoint", sysURL)},
-		{"second TOML provides missing key", testutil.TOMLEntry("defaults", "app-port", 9090), "", nil, sysURL, testutil.TOMLEntry("defaults", "endpoint", sysURL)},
+		"env overrides TOML": {
+			tomlContent: []string{tomlEndpointTest},
+			envVal:      envURL,
+			cliArgs:     nil,
+			expected:    envURL,
+		},
+		"TOML default used": {
+			tomlContent: []string{tomlEndpointTest},
+			envVal:      "",
+			cliArgs:     nil,
+			expected:    testURL,
+		},
+		"CLI overrides TOML": {
+			tomlContent: []string{tomlEndpointTest},
+			envVal:      "",
+			cliArgs:     []string{"--endpoint", cliURL},
+			expected:    cliURL,
+		},
+		"CLI overrides env": {
+			tomlContent: []string{tomlEndpointTest},
+			envVal:      envURL,
+			cliArgs:     []string{"--endpoint", cliURL},
+			expected:    cliURL,
+		},
+		"multiple TOML user wins": {
+			tomlContent: []string{tomlEndpointUser, tomlEndpointSys},
+			envVal:      "",
+			cliArgs:     nil,
+			expected:    userURL,
+		},
+		"second TOML provides missing key": {
+			tomlContent: []string{tomlTest, tomlEndpointSys},
+			envVal:      "",
+			cliArgs:     nil,
+			expected:    sysURL,
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			var srcs []cli.MapSource
-			if tt.tomlContent2 != "" {
-				ms1, _ := ParseTOML([]byte(tt.tomlContent), "test1")
-				ms2, _ := ParseTOML([]byte(tt.tomlContent2), "test2")
-				srcs = []cli.MapSource{ms1, ms2}
-			} else {
-				ms, _ := ParseTOML([]byte(tt.tomlContent), "test")
-				srcs = []cli.MapSource{ms}
+			for _, content := range tt.tomlContent {
+				ms, _ := ParseTOML([]byte(content), "test")
+				srcs = append(srcs, ms)
 			}
 
 			if tt.envVal != "" {
@@ -122,7 +153,7 @@ func buildRequiredFlagCommand(t *testing.T, srcs ...cli.MapSource) *cli.Command 
 // TestIntegration_RequiredFlagMissing which tests a required flag with
 // no sources at all.
 func TestIntegration_RequiredFlagMissing_WithSources(t *testing.T) {
-	ms, _ := ParseTOML([]byte(testutil.TOMLTable("defaults")), "empty")
+	ms, _ := ParseTOML([]byte(testutil.TOMLConfig("defaults")), "empty")
 	cmd := buildRequiredFlagCommand(t, ms)
 	err := cmd.Run(context.Background(), []string{"test"})
 	assert.Error(t, err)

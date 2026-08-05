@@ -25,17 +25,29 @@ func bootstrapArgs(extra ...string) []string {
 	return append(result, extra...)
 }
 
+var (
+	defaultsEndpointUser   = testutil.TOMLConfig("defaults", testutil.KV{Key: "endpoint", Value: "http://user"})
+	defaultsEndpointFirst  = testutil.TOMLConfig("defaults", testutil.KV{Key: "endpoint", Value: "http://first"})
+	defaultsEndpointSecond = testutil.TOMLConfig("defaults", testutil.KV{Key: "endpoint", Value: "http://second"})
+	defaultsEndpointEnv    = testutil.TOMLConfig("defaults", testutil.KV{Key: "endpoint", Value: "http://env"})
+)
+
 func TestRun_EmptySrcs(t *testing.T) {
-	tests := []struct {
-		name    string
+	tests := map[string]struct {
 		args    []string
 		wantLen int
 	}{
-		{"no args", nil, 0},
-		{"nodefaults skips system", []string{"--nodefaults"}, 0},
+		"no args": {
+			args:    nil,
+			wantLen: 0,
+		},
+		"nodefaults skips system": {
+			args:    []string{"--nodefaults"},
+			wantLen: 0,
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			args := bootstrapArgs(tt.args...)
 			srcs, err := Run(context.Background(), args)
 			assert.NoError(t, err)
@@ -49,21 +61,24 @@ func TestRun_EmptySrcs(t *testing.T) {
 // (sources_test.go, integration_test.go) — this validates what files are
 // loaded and that empty files produce empty MapSources.
 func TestRun_SingleUserConfig(t *testing.T) {
-	tests := []struct {
-		name    string
+	tests := map[string]struct {
 		content string
 		wantVal string
 		wantOK  bool
 	}{
-		{
-			"reads endpoint", testutil.TOMLEntry("defaults", "endpoint", "http://user"), "http://user", true,
+		"reads endpoint": {
+			content: defaultsEndpointUser,
+			wantVal: "http://user",
+			wantOK:  true,
 		},
-		{
-			"empty file has no keys", "", "", false,
+		"empty file has no keys": {
+			content: "",
+			wantVal: "",
+			wantOK:  false,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfg := writeTOML(t, dir, "user.toml", tt.content)
 
@@ -82,7 +97,7 @@ func TestRun_SingleUserConfig(t *testing.T) {
 
 func TestRun_NodefaultsStillLoadsUserConfig(t *testing.T) {
 	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("defaults", "endpoint", "http://user"))
+	cfg := writeTOML(t, dir, "user.toml", defaultsEndpointUser)
 	t.Setenv("WORMHOLE_NODEFAULTS", "true")
 	t.Setenv("WORMHOLE_CONFIG", cfg)
 
@@ -98,8 +113,8 @@ func TestRun_NodefaultsStillLoadsUserConfig(t *testing.T) {
 func TestRun_MultipleUserConfigs(t *testing.T) {
 	t.Run("second wins", func(t *testing.T) {
 		dir := t.TempDir()
-		cfg1 := writeTOML(t, dir, "first.toml", testutil.TOMLEntry("defaults", "endpoint", "http://first"))
-		cfg2 := writeTOML(t, dir, "second.toml", testutil.TOMLEntry("defaults", "endpoint", "http://second"))
+		cfg1 := writeTOML(t, dir, "first.toml", defaultsEndpointFirst)
+		cfg2 := writeTOML(t, dir, "second.toml", defaultsEndpointSecond)
 
 		srcs, err := Run(context.Background(), bootstrapArgs("--config", cfg1, "--config", cfg2))
 		assert.NoError(t, err)
@@ -114,7 +129,7 @@ func TestRun_MultipleUserConfigs(t *testing.T) {
 
 func TestRun_UnknownFlag_Ignored(t *testing.T) {
 	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("defaults", "endpoint", "http://user"))
+	cfg := writeTOML(t, dir, "user.toml", defaultsEndpointUser)
 
 	// --bogus is not a recognized bootstrap flag; OnUsageError returns nil
 	// so it's silently ignored and processing continues to file loading.
@@ -125,7 +140,7 @@ func TestRun_UnknownFlag_Ignored(t *testing.T) {
 
 func TestRun_ConfigFromEnv(t *testing.T) {
 	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "env.toml", testutil.TOMLEntry("defaults", "endpoint", "http://env"))
+	cfg := writeTOML(t, dir, "env.toml", defaultsEndpointEnv)
 	t.Setenv("WORMHOLE_CONFIG", cfg)
 
 	srcs, err := Run(context.Background(), bootstrapArgs())
