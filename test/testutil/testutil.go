@@ -5,12 +5,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 const (
 	TestToken       = "4745a904-81a0-49ca-b764-37bb4db9bb2c.Y1a2Y3ZTZ18BDaKqm2YUwmIAe78r1D2Fp-jO1gOsVao"
 	TestEndpointUrl = "http://routeregistry.test"
+
+	// DefaultTable is the TOML table name used in tests.
+	// Set to "test" (not "defaults") to catch functions that hardcode the
+	// production default table name.
+	DefaultTable = "test"
 )
 
 // NewMockResponse creates a simple http.Response for testing purposes.
@@ -26,31 +32,47 @@ func NewMockResponse(status int, body string) *http.Response {
 type KV struct {
 	Key   string
 	Value any
+	Table string
 }
 
-// TOMLEntries formats key-value pairs as a TOML [defaults] section.
-// Order is preserved as specified.
-func TOMLEntries(entries ...KV) string {
-	var b strings.Builder
-	b.WriteString("[defaults]\n")
+// TOMLEntry formats a single key-value pair as a TOML entry under the specified table.
+func TOMLEntry(table, key string, value any) string {
+	tables := buildTableMap(KV{Key: key, Value: value, Table: table})
+	data, err := toml.Marshal(tables)
+	if err != nil {
+		panic(fmt.Sprintf("toml.Marshal failed: %v", err))
+	}
+	return string(data)
+}
+
+// buildTableMap groups entries by table, applying DefaultTable fallback.
+func buildTableMap(entries ...KV) map[string]map[string]any {
+	tables := make(map[string]map[string]any)
 	for _, e := range entries {
-		fmt.Fprintf(&b, "%s = %v\n", e.Key, formatTomlValue(e.Value))
+		table := e.Table
+		if table == "" {
+			table = DefaultTable
+		}
+		if tables[table] == nil {
+			tables[table] = make(map[string]any)
+		}
+		tables[table][e.Key] = e.Value
 	}
-	return b.String()
+	return tables
 }
 
-// TOMLEntry formats a single key-value pair as a TOML [defaults] entry.
-func TOMLEntry(key string, value any) string {
-	return TOMLEntries(KV{key, value})
-}
-
-// formatTomlValue formats a value for TOML output.
-// Strings are quoted; other types use %v.
-func formatTomlValue(v any) string {
-	switch v := v.(type) {
-	case string:
-		return fmt.Sprintf("%q", v)
-	default:
-		return fmt.Sprintf("%v", v)
+// TOMLTable generates TOML for a table with the given name and entries.
+// Entries with an empty Table field use the specified table name.
+func TOMLTable(table string, entries ...KV) string {
+	for i := range entries {
+		if entries[i].Table == "" {
+			entries[i].Table = table
+		}
 	}
+	tables := buildTableMap(entries...)
+	data, err := toml.Marshal(tables)
+	if err != nil {
+		panic(fmt.Sprintf("toml.Marshal failed: %v", err))
+	}
+	return string(data)
 }

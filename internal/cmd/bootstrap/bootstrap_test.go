@@ -56,10 +56,10 @@ func TestRun_SingleUserConfig(t *testing.T) {
 		wantOK  bool
 	}{
 		{
-			"reads endpoint", testutil.TOMLEntry("endpoint", "http://user"), "http://user", true,
+			"reads endpoint", testutil.TOMLEntry("defaults", "endpoint", "http://user"), "http://user", true,
 		},
 		{
-			"empty file has no keys", ``, "", false,
+			"empty file has no keys", "", "", false,
 		},
 	}
 	for _, tt := range tests {
@@ -82,7 +82,7 @@ func TestRun_SingleUserConfig(t *testing.T) {
 
 func TestRun_NodefaultsStillLoadsUserConfig(t *testing.T) {
 	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("endpoint", "http://user"))
+	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("defaults", "endpoint", "http://user"))
 	t.Setenv("WORMHOLE_NODEFAULTS", "true")
 	t.Setenv("WORMHOLE_CONFIG", cfg)
 
@@ -98,8 +98,8 @@ func TestRun_NodefaultsStillLoadsUserConfig(t *testing.T) {
 func TestRun_MultipleUserConfigs(t *testing.T) {
 	t.Run("second wins", func(t *testing.T) {
 		dir := t.TempDir()
-		cfg1 := writeTOML(t, dir, "first.toml", testutil.TOMLEntry("endpoint", "http://first"))
-		cfg2 := writeTOML(t, dir, "second.toml", testutil.TOMLEntry("endpoint", "http://second"))
+		cfg1 := writeTOML(t, dir, "first.toml", testutil.TOMLEntry("defaults", "endpoint", "http://first"))
+		cfg2 := writeTOML(t, dir, "second.toml", testutil.TOMLEntry("defaults", "endpoint", "http://second"))
 
 		srcs, err := Run(context.Background(), bootstrapArgs("--config", cfg1, "--config", cfg2))
 		assert.NoError(t, err)
@@ -114,7 +114,7 @@ func TestRun_MultipleUserConfigs(t *testing.T) {
 
 func TestRun_UnknownFlag_Ignored(t *testing.T) {
 	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("endpoint", "http://user"))
+	cfg := writeTOML(t, dir, "user.toml", testutil.TOMLEntry("defaults", "endpoint", "http://user"))
 
 	// --bogus is not a recognized bootstrap flag; OnUsageError returns nil
 	// so it's silently ignored and processing continues to file loading.
@@ -125,7 +125,7 @@ func TestRun_UnknownFlag_Ignored(t *testing.T) {
 
 func TestRun_ConfigFromEnv(t *testing.T) {
 	dir := t.TempDir()
-	cfg := writeTOML(t, dir, "env.toml", testutil.TOMLEntry("endpoint", "http://env"))
+	cfg := writeTOML(t, dir, "env.toml", testutil.TOMLEntry("defaults", "endpoint", "http://env"))
 	t.Setenv("WORMHOLE_CONFIG", cfg)
 
 	srcs, err := Run(context.Background(), bootstrapArgs())

@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v3"
+
+	"github.com/llnl/wormhole-cli/test/testutil"
 )
 
 // This file contains unit tests for flagSources() and TOMLMapSource().
@@ -46,12 +48,12 @@ func TestTOMLMapSource_ValueTypes(t *testing.T) {
 		wantVal any
 		wantOK  bool
 	}{
-		{"flat keys", "[defaults]\nendpoint = \"http://x\"", "defaults.endpoint", "http://x", true},
-		{"nested defaults", "[defaults]\napp-port = 9090\nname = \"myapp\"", "defaults.app-port", int64(9090), true},
-		{"empty file", "", "defaults.anything", nil, false},
-		{"boolean", "[defaults]\nverbose = true", "defaults.verbose", true, true},
-		{"integer", "[defaults]\napp-port = 9090", "defaults.app-port", int64(9090), true},
-		{"string", "[defaults]\nname = \"myapp\"", "defaults.name", "myapp", true},
+		{"flat keys", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "endpoint", Value: "http://x"}), testutil.DefaultTable + ".endpoint", "http://x", true},
+		{"nested defaults", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "app-port", Value: 9090}, testutil.KV{Key: "name", Value: "myapp"}), testutil.DefaultTable + ".app-port", int64(9090), true},
+		{"empty file", "", testutil.DefaultTable + ".anything", nil, false},
+		{"boolean", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "verbose", Value: true}), testutil.DefaultTable + ".verbose", true, true},
+		{"integer", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "app-port", Value: 9090}), testutil.DefaultTable + ".app-port", int64(9090), true},
+		{"string", testutil.TOMLTable(testutil.DefaultTable, testutil.KV{Key: "name", Value: "myapp"}), testutil.DefaultTable + ".name", "myapp", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,7 +114,7 @@ func TestFlagSources_Resolution(t *testing.T) {
 
 			var srcs []cli.MapSource
 			if tt.tomlVal != "" {
-				ms, _ := ParseTOML([]byte("[defaults]\ntest-flag = \""+tt.tomlVal+"\""), "test")
+				ms, _ := ParseTOML([]byte(testutil.TOMLTable("defaults", testutil.KV{Key: "test-flag", Value: tt.tomlVal})), "test")
 				srcs = []cli.MapSource{ms}
 			}
 

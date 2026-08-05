@@ -25,6 +25,10 @@ const (
 
 	categoryGeneral = "General"
 	categoryTunnel  = "Tunnel"
+
+	// ConfigTableName is the TOML table name used for CLI configuration
+	// keys. It is exported so test helpers can generate matching TOML.
+	ConfigTableName = "defaults"
 )
 
 const (

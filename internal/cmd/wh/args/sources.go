@@ -20,7 +20,7 @@ func flagSources(flagName string, srcs ...cli.MapSource) cli.ValueSourceChain {
 	chain := cli.NewValueSourceChain(cli.EnvVar(envPrefix + envName))
 	for _, ms := range srcs {
 		chain.Chain = append(chain.Chain,
-			cli.NewMapValueSource("defaults."+flagName, ms))
+			cli.NewMapValueSource(ConfigTableName+"."+flagName, ms))
 	}
 	return chain
 }
