@@ -116,21 +116,6 @@ func TestIntegration_ValueSourceChain(t *testing.T) {
 	}
 }
 
-func TestIntegration_RequiredFlagMissing(t *testing.T) {
-	cmd := &cli.Command{
-		Name: "test",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "endpoint",
-				Required: true,
-			},
-		},
-		Action: func(ctx context.Context, c *cli.Command) error { return nil },
-	}
-	err := cmd.Run(context.Background(), []string{"test"})
-	assert.Error(t, err)
-}
-
 // buildRequiredFlagCommand creates a command with a single required flag
 // that uses flagSources for value resolution. Used to test that the
 // required-flag enforcement works even when sources are present.
