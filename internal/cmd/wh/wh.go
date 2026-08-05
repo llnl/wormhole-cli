@@ -24,6 +24,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/llnl/wormhole-airlock/pkg/airlock"
+	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/llnl/wormhole-cli/internal/ns"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
 	"github.com/llnl/wormhole-cli/internal/version"
@@ -269,11 +270,11 @@ func doAsync(f func() error) chan error {
 }
 
 // TODO convert route registration to use service layer
-func handleOpen(ctx context.Context, cCmd *cli.Command, service routeregistry.RegistryService, logger *slog.Logger) error {
-	verbose := cCmd.Bool(setVerboseName)
+func handleOpen(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, service routeregistry.RegistryService, logger *slog.Logger) error {
+	verbose := a.Global.Verbose
 
 	sidecar := func(cCtx context.Context) error {
-		return openWormhole(cCtx, cCmd, logger, verbose)
+		return openWormhole(cCtx, a, logger, verbose)
 	}
 
 	if cCmd.NArg() > 0 {
@@ -284,7 +285,7 @@ func handleOpen(ctx context.Context, cCmd *cli.Command, service routeregistry.Re
 		}
 		if os.Getenv("_CONTAINERS_USERNS_CONFIGURED") == "init" {
 			// Namespace: second stage launch
-			podman := cCmd.Bool(setPodmanCompatName)
+			podman := a.Open.PodmanCompat
 			return nsConfig.Exec(ctx, cCmd.Args().Slice(), podman, sidecar)
 		} else {
 			// Namespace: first stage launch
@@ -299,19 +300,19 @@ func handleOpen(ctx context.Context, cCmd *cli.Command, service routeregistry.Re
 	}
 }
 
-func openWormhole(ctx context.Context, cCmd *cli.Command, logger *slog.Logger, verbose bool) error {
+func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, verbose bool) error {
 	fmt.Printf("Using wormhole-cli v%s\n", version.GetVersion())
 
-	token := cCmd.String(setTokenName)
-	endpoint := cCmd.String(setEndpointName)
-	port, err := strconv.Atoi(cCmd.String(setPortName))
+	token := a.Global.Token
+	endpoint := a.Global.Endpoint
+	port, err := strconv.Atoi(a.Open.AppPort)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	routeOptions := createRouteOptionsV2{
-		Name:      cCmd.String(setNameName),
-		Community: cCmd.String(setCommunityName),
+		Name:      a.Open.Name,
+		Community: a.Open.Community,
 	}
 
 	splitFn := func(c rune) bool {
@@ -319,16 +320,16 @@ func openWormhole(ctx context.Context, cCmd *cli.Command, logger *slog.Logger, v
 	}
 
 	// split allowed and excluded user flags into slices
-	allowedUsers := strings.FieldsFunc(cCmd.String(setAllowedUsersName), splitFn)
-	allowedGroups := strings.FieldsFunc(cCmd.String(setAllowedGroupsName), splitFn)
+	allowedUsers := strings.FieldsFunc(a.Open.AllowedUsers, splitFn)
+	allowedGroups := strings.FieldsFunc(a.Open.AllowedGroups, splitFn)
 
 	// ensure that either a set of allowed users or groups is set
 	if len(allowedUsers)+len(allowedGroups) <= 0 {
 		log.Fatal(fmt.Errorf("Error: cannot create a wormhole with no allowed users and groups\n"))
 	}
 
-	forbiddenUsers := strings.FieldsFunc(cCmd.String(setForbiddenUsersName), splitFn)
-	forbiddenGroups := strings.FieldsFunc(cCmd.String(setForbiddenGroupsName), splitFn)
+	forbiddenUsers := strings.FieldsFunc(a.Open.ForbiddenUsers, splitFn)
+	forbiddenGroups := strings.FieldsFunc(a.Open.ForbiddenGroups, splitFn)
 
 	// compute slice intersection and error if users are both allowed and excluded
 	// as of 02/03/2026 this causes an error with duplicate routes in the registry
@@ -343,8 +344,8 @@ func openWormhole(ctx context.Context, cCmd *cli.Command, logger *slog.Logger, v
 	}
 
 	// get airlock configuration for user and group headers
-	forwardUserHeader := cCmd.String(setForwardedHeaderUserName)
-	forwardGroupsHeader := cCmd.String(setForwardedHeaderGroupsName)
+	forwardUserHeader := a.Open.ForwardedHeaderUser
+	forwardGroupsHeader := a.Open.ForwardedHeaderGroups
 
 	// briefly open a tcp socket to get a random open port then use that port for airlock
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -370,7 +371,7 @@ func openWormhole(ctx context.Context, cCmd *cli.Command, logger *slog.Logger, v
 		ForbiddenGroups:     forbiddenGroups,
 		ForwardUserHeader:   forwardUserHeader,
 		ForwardGroupsHeader: forwardGroupsHeader,
-		AuthBearerHeader:    cCmd.Bool(setAuthBearerHeaderName),
+		AuthBearerHeader:    a.Open.AuthBearerHeader,
 	}
 
 	// create errgroup for managing goroutines

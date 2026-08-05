@@ -7,10 +7,11 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
 )
 
-func listRoutes(ctx context.Context, cCmd *cli.Command, registry routeregistry.RegistryService, logger *slog.Logger) error {
+func listRoutes(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger) error {
 	identifier := cCmd.Args().First()
 
 	rl, err := registry.ListRoutes(ctx, identifier)

@@ -8,7 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/llnl/wormhole-cli/internal/cmd/bootstrap"
 	"github.com/llnl/wormhole-cli/internal/cmd/wh"
+	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/llnl/wormhole-cli/internal/logctx"
 	"github.com/llnl/wormhole-cli/internal/version"
 	"github.com/urfave/cli/v3"
@@ -29,7 +31,22 @@ func main() {
 	lCtx := logctx.WithLogger(ctx, logctx.New(logger, &logLevel))
 
 	cli.VersionPrinter = version.Printer
-	app := wh.Tasks()
+
+	// Pass 1: parse --config/--nodefaults, load TOML files into MapSources.
+	srcs, err := bootstrap.Run(lCtx, os.Args)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Pass 2: build the CLI command tree with TOML-sourced flags and run.
+	cliArgs := &args.CLIArgs{}
+	var bootstrapConfigs []string
+	var bootstrapNoDefaults bool
+	app := wh.Tasks(cliArgs, srcs...)
+	app.Flags = append(
+		args.GlobalFlags(cliArgs, srcs...),
+		args.BootstrapFlags(&bootstrapConfigs, &bootstrapNoDefaults)...,
+	)
 
 	if err := app.Run(lCtx, os.Args); err != nil {
 		log.Fatalln(err)

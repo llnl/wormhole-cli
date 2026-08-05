@@ -116,14 +116,14 @@ precedence:
    (repeatable; layered in the order given)
 3. **CLI flags and environment variables** — highest precedence
 
-Config files use a `[defaults]` section with lowercase keys matching the
-environment variable names (minus the `WORMHOLE_` prefix):
+Config files use a `[defaults]` section with lowercase, hyphenated keys that
+match the CLI flag names:
 
 ```toml
 [defaults]
 endpoint = "https://route-registry.example.com"
 token    = "abc123"
-app_port = 8080
+app-port = 8080
 verbose  = true
 ```
 
