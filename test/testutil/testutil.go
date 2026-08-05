@@ -12,11 +12,7 @@ import (
 const (
 	TestToken       = "4745a904-81a0-49ca-b764-37bb4db9bb2c.Y1a2Y3ZTZ18BDaKqm2YUwmIAe78r1D2Fp-jO1gOsVao"
 	TestEndpointUrl = "http://routeregistry.test"
-
-	// DefaultTable is the TOML table name used in tests.
-	// Set to "test" (not "defaults") to catch functions that hardcode the
-	// production default table name.
-	DefaultTable = "test"
+	DefaultTable    = "test"
 )
 
 // NewMockResponse creates a simple http.Response for testing purposes.
@@ -65,5 +61,3 @@ func buildTableMap(entries ...KV) map[string]map[string]any {
 	}
 	return tables
 }
-
-
