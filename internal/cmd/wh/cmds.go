@@ -37,14 +37,16 @@ func Tasks(a *args.CLIArgs, srcs ...cli.MapSource) *cli.Command {
 
 func openCmd(a *args.CLIArgs, srcs []cli.MapSource) *cli.Command {
 	stopOnNthArg := 1
-	usage := "Open a new wormhole to proxy from a local app.\nIf a command is specified, launches the provided command in a new network namespace with wormhole forwarding."
+	usage := "Open a new wormhole to proxy from a local app." +
+		"\nIf a command is specified, launches the provided command " +
+		"in a new network namespace with wormhole forwarding."
 	usageText := "wh open [options] [--] [command [options ...]]"
 
 	_, err := ns.Initialize()
 	if err != nil {
-		usage = fmt.Sprintf("%s\nNamespacing is not available on this system", usage)
+		usage += "\nNamespacing is not available on this system"
 	} else {
-		usage = fmt.Sprintf("%s\nNamespacing is available on this system", usage)
+		usage += "\nNamespacing is available on this system"
 	}
 
 	return &cli.Command{
@@ -60,6 +62,7 @@ func openCmd(a *args.CLIArgs, srcs []cli.MapSource) *cli.Command {
 func communityCmd(a *args.CLIArgs) *cli.Command {
 	usage := "Manage wormhole communities"
 	usageText := "wh community [command]"
+
 	return &cli.Command{
 		Name:      "community",
 		Usage:     usage,
@@ -77,6 +80,7 @@ func communityCmd(a *args.CLIArgs) *cli.Command {
 func communityListCmd(a *args.CLIArgs) *cli.Command {
 	usage := "List communities or show details for a specific community"
 	usageText := "wh community list [community]"
+
 	return &cli.Command{
 		Name:      "list",
 		Usage:     usage,
@@ -88,6 +92,7 @@ func communityListCmd(a *args.CLIArgs) *cli.Command {
 func communityAddCmd(a *args.CLIArgs) *cli.Command {
 	usage := "Add a new community with the specified name"
 	usageText := "wh community add [name]"
+
 	return &cli.Command{
 		Name:      "add",
 		Usage:     usage,
@@ -99,6 +104,7 @@ func communityAddCmd(a *args.CLIArgs) *cli.Command {
 func communityRemoveCmd(a *args.CLIArgs) *cli.Command {
 	usage := "Remove a community by its name or ID (min 8 chars for ID)"
 	usageText := "wh community remove [name or id]"
+
 	return &cli.Command{
 		Name:      "remove",
 		Usage:     usage,
@@ -110,6 +116,7 @@ func communityRemoveCmd(a *args.CLIArgs) *cli.Command {
 func communityAddRouteCmd(a *args.CLIArgs) *cli.Command {
 	usage := fmt.Sprintf("Add a route to a community. Route can be identified by fqname (domain/name) or ID (min %d chars)", routeregistry.MinIDLength)
 	usageText := "wh community add-route [community name or id] [route fqname or id]"
+
 	return &cli.Command{
 		Name:      "add-route",
 		Usage:     usage,
@@ -121,6 +128,7 @@ func communityAddRouteCmd(a *args.CLIArgs) *cli.Command {
 func communityRemoveRouteCmd(a *args.CLIArgs) *cli.Command {
 	usage := fmt.Sprintf("Remove a route from a community. Route can be identified by fqname (domain/name) or ID (min %d chars)", routeregistry.MinIDLength)
 	usageText := "wh community remove-route [community name or id] [route fqname or id]"
+
 	return &cli.Command{
 		Name:      "remove-route",
 		Usage:     usage,
@@ -132,6 +140,7 @@ func communityRemoveRouteCmd(a *args.CLIArgs) *cli.Command {
 func routeCmd(a *args.CLIArgs) *cli.Command {
 	usage := "Manage wormhole routes"
 	usageText := "wh route [command]"
+
 	return &cli.Command{
 		Name:      "route",
 		Usage:     usage,
@@ -145,6 +154,7 @@ func routeCmd(a *args.CLIArgs) *cli.Command {
 func routeListCmd(a *args.CLIArgs) *cli.Command {
 	usage := "List routes or show details for a specific route"
 	usageText := "wh route list [route]"
+
 	return &cli.Command{
 		Name:      "list",
 		Usage:     usage,
@@ -153,13 +163,14 @@ func routeListCmd(a *args.CLIArgs) *cli.Command {
 	}
 }
 
-// handle global flags before executing handler
+// handle global flags before executing handler.
 func globalWrap(a *args.CLIArgs, handler globalHandler) cli.ActionFunc {
 	return func(ctx context.Context, cCmd *cli.Command) error {
 		verbose := a.Global.Verbose
+
 		cl := logctx.GetLogger(ctx)
 		if verbose {
-			cl.SetLogLevel(slog.LevelInfo)
+			_ = cl.SetLogLevel(slog.LevelInfo)
 		}
 
 		token := a.Global.Token

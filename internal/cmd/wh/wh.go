@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -95,10 +96,10 @@ func intersect[T comparable](allowed, forbidden []T) []T {
 	return intersectionSet
 }
 
-func registerRoute(token, endpoint string, options createRouteOptionsV2, logger *slog.Logger) (data createRouteResponseV2, err error) {
+func registerRoute(token, endpoint string, options createRouteOptionsV2, logger *slog.Logger) (createRouteResponseV2, error) {
 	payload, err := json.Marshal(options)
 	if err != nil {
-		return data, err
+		return createRouteResponseV2{}, err
 	}
 
 	logger.Info("Registering route",
@@ -107,12 +108,12 @@ func registerRoute(token, endpoint string, options createRouteOptionsV2, logger 
 
 	url, err := url.JoinPath(endpoint, routeRegistryAPIPath)
 	if err != nil {
-		return data, err
+		return createRouteResponseV2{}, err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
 	if err != nil {
-		return data, err
+		return createRouteResponseV2{}, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -127,36 +128,44 @@ func registerRoute(token, endpoint string, options createRouteOptionsV2, logger 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return data, err
+		return createRouteResponseV2{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	logger.Info("Received response", slog.Int("status_code", resp.StatusCode))
 
-	switch resp.StatusCode {
-	case 404:
-		return data, fmt.Errorf("Unable to create route: Invalid URL [404]")
-	case 401:
-		return data, fmt.Errorf("Unable to create route: Invalid Token [401]")
-	case 301:
-		return data, fmt.Errorf("Unable to create route: URL has moved [301]")
-	case 200:
-		break
-	default:
-		return data, fmt.Errorf("Unable to create route [%d]", resp.StatusCode)
+	if err := handleRouteResponse(resp); err != nil {
+		return createRouteResponseV2{}, err
 	}
-	decoder := json.NewDecoder(resp.Body)
 
-	err = decoder.Decode(&data)
-	if err != nil {
-		return data, err
+	var result createRouteResponseV2
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return createRouteResponseV2{}, err
 	}
 
 	logger.Info("Route registered successfully",
-		slog.String("url", data.Url),
-		slog.String("tunnel_endpoint", data.Tunnel.EndpointID))
+		slog.String("url", result.Url),
+		slog.String("tunnel_endpoint", result.Tunnel.EndpointID))
 
-	return data, nil
+	return result, nil
+}
+
+// handleRouteResponse checks the HTTP status code and returns an error for
+// non-successful responses.
+func handleRouteResponse(resp *http.Response) error {
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		return errors.New("unable to create route: invalid URL [404]")
+	case http.StatusUnauthorized:
+		return errors.New("unable to create route: invalid token [401]")
+	case http.StatusMovedPermanently:
+		return errors.New("unable to create route: url has moved [301]")
+	case http.StatusOK:
+		return nil
+	default:
+		return fmt.Errorf("unable to create route [%d]", resp.StatusCode)
+	}
 }
 
 func launchAirlock(g *errgroup.Group, ctx context.Context, token string, config airlockConfig, verbose bool) error {
@@ -183,6 +192,7 @@ func launchAirlock(g *errgroup.Group, ctx context.Context, token string, config 
 	if err != nil {
 		return err
 	}
+
 	jwksEndpoint.Path = path.Join(jwksEndpoint.Path, jwksWellKnownSuffix)
 
 	// Set logging level based on verbose flag
@@ -191,7 +201,7 @@ func launchAirlock(g *errgroup.Group, ctx context.Context, token string, config 
 		logLevel = "debug"
 	}
 
-	//create Airlock Proxy
+	// create Airlock Proxy
 	opts := airlock.Options{
 		Web: airlock.Web{
 			Address: config.Addr,
@@ -228,7 +238,7 @@ func launchPiko(g *errgroup.Group, ctx context.Context, jwt, endpointURL, endpoi
 	if err != nil {
 		return fmt.Errorf("failed to create logger for piko: %w", err)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// parse relay endpoint URL
 	pikoURL, err := url.Parse(endpointURL)
@@ -250,13 +260,15 @@ func launchPiko(g *errgroup.Group, ctx context.Context, jwt, endpointURL, endpoi
 		if err != nil {
 			return fmt.Errorf("piko listen: %w", err)
 		}
-		defer forwarder.Close()
+		defer func() { _ = forwarder.Close() }()
 
 		if err := forwarder.Wait(); err != nil {
 			return fmt.Errorf("piko forwarder: %w", err)
 		}
+
 		return nil
 	})
+
 	return nil
 }
 
@@ -264,12 +276,14 @@ func doAsync(f func() error) chan error {
 	done := make(chan error, 1)
 	go func() {
 		done <- f()
+
 		close(done)
 	}()
+
 	return done
 }
 
-// TODO convert route registration to use service layer
+// TODO convert route registration to use service layer.
 func handleOpen(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, service routeregistry.RegistryService, logger *slog.Logger) error {
 	verbose := a.Global.Verbose
 
@@ -283,9 +297,11 @@ func handleOpen(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, service
 			logger.Error("Namespaces are not available on this system")
 			log.Fatal(err)
 		}
+
 		if os.Getenv("_CONTAINERS_USERNS_CONFIGURED") == "init" {
 			// Namespace: second stage launch
 			podman := a.Open.PodmanCompat
+
 			return nsConfig.Exec(ctx, cCmd.Args().Slice(), podman, sidecar)
 		} else {
 			// Namespace: first stage launch
@@ -305,6 +321,7 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 
 	token := a.Global.Token
 	endpoint := a.Global.Endpoint
+
 	port, err := strconv.Atoi(a.Open.AppPort)
 	if err != nil {
 		log.Fatal(err)
@@ -325,7 +342,7 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 
 	// ensure that either a set of allowed users or groups is set
 	if len(allowedUsers)+len(allowedGroups) <= 0 {
-		log.Fatal(fmt.Errorf("Error: cannot create a wormhole with no allowed users and groups\n"))
+		log.Fatal(errors.New("cannot create a wormhole with no allowed users and groups"))
 	}
 
 	forbiddenUsers := strings.FieldsFunc(a.Open.ForbiddenUsers, splitFn)
@@ -335,12 +352,12 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 	// as of 02/03/2026 this causes an error with duplicate routes in the registry
 	allowedForbiddenUsers := intersect(allowedUsers, forbiddenUsers)
 	if len(allowedForbiddenUsers) != 0 {
-		log.Fatal(fmt.Errorf("Error: cannot both allow and forbid access for %q\n", allowedForbiddenUsers))
+		log.Fatal(fmt.Errorf("cannot both allow and forbid access for %q", allowedForbiddenUsers))
 	}
 
 	allowedForbiddenGroups := intersect(allowedGroups, forbiddenGroups)
 	if len(allowedForbiddenGroups) != 0 {
-		log.Fatal(fmt.Errorf("Error: cannot both allow and forbid access for %q\n", allowedForbiddenGroups))
+		log.Fatal(fmt.Errorf("cannot both allow and forbid access for %q", allowedForbiddenGroups))
 	}
 
 	// get airlock configuration for user and group headers
@@ -352,8 +369,9 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	addr := listener.Addr().String()
-	listener.Close()
+	_ = listener.Close()
 
 	routeData, err := registerRoute(token, endpoint, routeOptions, logger)
 	if err != nil {
@@ -397,13 +415,15 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 		if err := g.Wait(); err != nil {
 			return fmt.Errorf("wormhole error: %w", err)
 		}
+
 		return nil
 	})
 
 	select {
 	case <-gCtx.Done():
 		// remove SIGINT if airlock switches to accepting context cancellation
-		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+		_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+
 		for {
 			// send SIGINT until terminate
 			// workaround for child process exiting before airlock is listening for SIGINT
@@ -412,7 +432,7 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 			case <-done:
 				return nil
 			case <-timeout:
-				syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+				_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 			}
 		}
 	case err := <-done:

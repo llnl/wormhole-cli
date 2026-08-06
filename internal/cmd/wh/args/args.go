@@ -38,7 +38,7 @@ const (
 )
 
 // CLIArgs is the superset of all CLI configuration. It composes
-// GlobalArgs (root-level flags) and OpenArgs (open subcommand flags)
+// GlobalArgs (root-level flags) and OpenArgs (open subcommand flags).
 type CLIArgs struct {
 	Global GlobalArgs
 	Open   OpenArgs

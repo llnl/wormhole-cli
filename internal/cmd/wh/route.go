@@ -29,7 +29,7 @@ func listRoutes(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, registr
 	return nil
 }
 
-// Find a route from the list by full name match or partial ID match
+// Find a route from the list by full name match or partial ID match.
 func findRoute(rl []routeregistry.Route, identifier string) *routeregistry.Route {
 	for i := range rl {
 		if rl[i].Matches(identifier) {

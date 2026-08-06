@@ -10,18 +10,20 @@ import (
 )
 
 // flagSources builds the ValueSourceChain for a flag:
-//   1. Environment variable: WORMHOLE_APP_PORT
-//   2. One MapSource per TOML file: defaults.app-port
+//  1. Environment variable: WORMHOLE_APP_PORT
+//  2. One MapSource per TOML file: defaults.app-port
 //
 // The chain is evaluated in order; the first source that returns a value wins.
 // urfave/cli evaluates this chain in PostParse() for flags not set by CLI.
 func flagSources(flagName string, srcs ...cli.MapSource) cli.ValueSourceChain {
 	envName := strings.ReplaceAll(strings.ToUpper(flagName), "-", "_")
+
 	chain := cli.NewValueSourceChain(cli.EnvVar(envPrefix + envName))
 	for _, ms := range srcs {
 		chain.Chain = append(chain.Chain,
 			cli.NewMapValueSource(ConfigTableName+"."+flagName, ms))
 	}
+
 	return chain
 }
 
@@ -30,10 +32,12 @@ func flagSources(flagName string, srcs ...cli.MapSource) cli.ValueSourceChain {
 // map is converted to map[any]any since MapSource requires it. Nested
 // maps are handled transparently by MapSource.Lookup().
 func TOMLMapSource(path string) (cli.MapSource, error) {
+	//nolint:gosec // config file path from trusted CLI args
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+
 	return ParseTOML(data, path)
 }
 
@@ -44,6 +48,7 @@ func ParseTOML(data []byte, name string) (cli.MapSource, error) {
 	if err := toml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", name, err)
 	}
+
 	return cli.NewMapSource(name, convertTopLevel(raw)), nil
 }
 
@@ -55,5 +60,6 @@ func convertTopLevel(m map[string]any) map[any]any {
 	for k, v := range m {
 		r[k] = v
 	}
+
 	return r
 }

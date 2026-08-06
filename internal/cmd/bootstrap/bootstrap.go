@@ -19,8 +19,10 @@ const systemConfigPath = "/etc/wormhole/cli.toml"
 // The logger is owned by main.go and passed in via ctx.
 // The cmdArgs parameter should be os.Args (or a test-supplied slice).
 func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
-	var configs []string
-	var noDefaults bool
+	var (
+		configs    []string
+		noDefaults bool
+	)
 
 	bootstrap := &cli.Command{
 		HideHelp: true,
@@ -38,6 +40,7 @@ func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 	}
 
 	var mapSrcs []cli.MapSource
+
 	if !noDefaults {
 		if ms, err := args.TOMLMapSource(systemConfigPath); err != nil {
 			if os.IsNotExist(err) {
@@ -49,11 +52,13 @@ func Run(ctx context.Context, cmdArgs []string) ([]cli.MapSource, error) {
 			mapSrcs = append(mapSrcs, ms)
 		}
 	}
+
 	for _, path := range configs {
 		ms, err := args.TOMLMapSource(path)
 		if err != nil {
 			return nil, fmt.Errorf("config %s: %w", path, err)
 		}
+
 		mapSrcs = append(mapSrcs, ms)
 	}
 

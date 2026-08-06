@@ -5,16 +5,16 @@ import (
 	"fmt"
 )
 
-type ErrHttpResponse struct {
+type HttpResponseError struct {
 	Code int
 }
 
-func (e ErrHttpResponse) Error() string {
+func (e HttpResponseError) Error() string {
 	return fmt.Sprintf("HTTP status %d", e.Code)
 }
 
 func newHttpError(code int) error {
-	return ErrHttpResponse{Code: code}
+	return HttpResponseError{Code: code}
 }
 
 type Requester[Request any, Response any] interface {

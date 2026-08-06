@@ -45,8 +45,9 @@ func (c *RegistryClient) AddCommunity(ctx context.Context, name string) (*Commun
 }
 
 func (c *RegistryClient) RemoveCommunity(ctx context.Context, identifier string) error {
-	path := fmt.Sprintf("api/v1/community/%s", url.PathEscape(identifier))
+	path := "api/v1/community/" + url.PathEscape(identifier)
 	_, err := do[None, None](c, ctx, http.MethodDelete, path, nil)
+
 	return err
 }
 
@@ -75,6 +76,7 @@ func (c *RegistryClient) ListCommunities(ctx context.Context, identifier string)
 	}
 
 	var filtered []Community
+
 	for i := range cl {
 		if cl[i].Matches(identifier) {
 			filtered = append(filtered, cl[i])
@@ -91,12 +93,14 @@ func (c *RegistryClient) ListCommunities(ctx context.Context, identifier string)
 func (c *RegistryClient) AddCommunityRoute(ctx context.Context, communityID, routeID string) error {
 	path := fmt.Sprintf("api/v1/community/%s/route/%s", url.PathEscape(communityID), url.PathEscape(routeID))
 	_, err := do[None, MembershipResponse](c, ctx, http.MethodPut, path, nil)
+
 	return err
 }
 
 func (c *RegistryClient) RemoveCommunityRoute(ctx context.Context, communityID, routeID string) error {
 	path := fmt.Sprintf("api/v1/community/%s/route/%s", url.PathEscape(communityID), url.PathEscape(routeID))
 	_, err := do[None, None](c, ctx, http.MethodDelete, path, nil)
+
 	return err
 }
 
@@ -107,10 +111,12 @@ func (c *RegistryClient) RegisterRoute(ctx context.Context, communityName, route
 		Name:          routeName,
 		CommunityName: &communityName,
 	})
+
 	return r, err
 }
 
-// TODO refactor: list and resolve methods are nearly identical between community and route
+// ResolveRoute resolves a route by partial ID or fully qualified name.
+// TODO refactor: list and resolve methods are nearly identical between community and route.
 func (c *RegistryClient) ResolveRoute(ctx context.Context, identifier string) (*Route, error) {
 	rl, err := c.ListRoutes(ctx, identifier)
 	if err != nil {
@@ -135,6 +141,7 @@ func (c *RegistryClient) ListRoutes(ctx context.Context, identifier string) ([]R
 	}
 
 	var filtered []Route
+
 	for i := range rl {
 		if rl[i].Matches(identifier) {
 			filtered = append(filtered, rl[i])
@@ -150,6 +157,7 @@ func (c *RegistryClient) ListRoutes(ctx context.Context, identifier string) ([]R
 
 func do[Req any, Resp any](c *RegistryClient, ctx context.Context, method string, path string, req *Req) (Resp, error) {
 	r := requester.NewTokenAuthRequester[Req, Resp](c.token, c.endpoint, c.client, c.logger)
+
 	switch method {
 	case http.MethodGet:
 		return r.Get(ctx, path)
@@ -161,6 +169,7 @@ func do[Req any, Resp any](c *RegistryClient, ctx context.Context, method string
 		return r.Delete(ctx, path)
 	default:
 		var zero Resp
+
 		return zero, fmt.Errorf("unsupported method: %s", method)
 	}
 }

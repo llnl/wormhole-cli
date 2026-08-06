@@ -1,7 +1,7 @@
 package args
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -18,7 +18,8 @@ const (
 	forbiddenGroupsName       = "forbidden-groups"
 	forwardedHeaderUserName   = "forwarded-header-user"
 	forwardedHeaderGroupsName = "forwarded-header-groups"
-	authBearerHeaderName      = "auth-bearer-header"
+	//nolint:gosec // auth-bearer-header is a header name, not a credential
+	authBearerHeaderName = "auth-bearer-header"
 )
 
 // OpenArgs holds values for flags defined on the "open" subcommand.
@@ -50,8 +51,9 @@ func OpenFlags(a *CLIArgs, srcs ...cli.MapSource) []cli.Flag {
 			Required:    true,
 			Validator: func(n string) error {
 				if strings.ContainsAny(n, "_") {
-					return fmt.Errorf("name may not contain any underscores _")
+					return errors.New("name may not contain any underscores _")
 				}
+
 				return nil
 			},
 			Config: cli.StringConfig{TrimSpace: true},

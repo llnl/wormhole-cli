@@ -2,6 +2,7 @@ package wh
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
@@ -9,19 +10,19 @@ import (
 
 /* Community */
 
-func getCommunitiesTable(communities []routeregistry.Community) (headers []string, data [][]string) {
-	headers = []string{"ID", "Name", "Routes"}
-	data = make([][]string, len(communities))
+func getCommunitiesTable(communities []routeregistry.Community) ([]string, [][]string) {
+	headers := []string{"ID", "Name", "Routes"}
+	data := make([][]string, len(communities))
 
 	for i, c := range communities {
 		data[i] = []string{
 			truncateID(ptrToString(c.ID)),
 			c.Name,
-			fmt.Sprintf("%d", len(c.Routes)),
+			strconv.Itoa(len(c.Routes)),
 		}
 	}
 
-	return
+	return headers, data
 }
 
 func formatCommunityList(communities []routeregistry.Community) string {
@@ -54,9 +55,9 @@ func formatCommunitySingle(c *routeregistry.Community) string {
 
 /* Route */
 
-func getRoutesTable(routes []routeregistry.Route) (headers []string, data [][]string) {
-	headers = []string{"Route ID", "Route Name", "Community Name", "URL", "Allowed", "Disallowed"}
-	data = make([][]string, len(routes))
+func getRoutesTable(routes []routeregistry.Route) ([]string, [][]string) {
+	headers := []string{"Route ID", "Route Name", "Community Name", "URL", "Allowed", "Disallowed"}
+	data := make([][]string, len(routes))
 
 	for i, r := range routes {
 		routeName := r.Name
@@ -67,10 +68,12 @@ func getRoutesTable(routes []routeregistry.Route) (headers []string, data [][]st
 		}
 
 		var allowedList, disallowedList string
+
 		if r.Rules != nil {
 			if r.Rules.Allowed != nil {
 				allowedList = strings.Join(append(r.Rules.Allowed.Users, r.Rules.Allowed.Groups...), ", ")
 			}
+
 			if r.Rules.Disallowed != nil {
 				disallowedList = strings.Join(append(r.Rules.Disallowed.Users, r.Rules.Disallowed.Groups...), ", ")
 			}
@@ -86,7 +89,7 @@ func getRoutesTable(routes []routeregistry.Route) (headers []string, data [][]st
 		}
 	}
 
-	return
+	return headers, data
 }
 
 func formatRouteList(routes []routeregistry.Route) string {
@@ -167,6 +170,7 @@ func ptrToString(s *string) string {
 	if s == nil {
 		return ""
 	}
+
 	return *s
 }
 
@@ -174,6 +178,7 @@ func truncateID(id string) string {
 	if len(id) > routeregistry.MinIDLength {
 		return id[:routeregistry.MinIDLength]
 	}
+
 	return id
 }
 
@@ -197,9 +202,11 @@ func formatTable(headers []string, data [][]string) string {
 
 	var sb strings.Builder
 	formatRow(&sb, headers, maxW)
+
 	for _, row := range data {
 		formatRow(&sb, row, maxW)
 	}
+
 	return sb.String()
 }
 
@@ -210,9 +217,11 @@ func formatRow(sb *strings.Builder, row []string, maxW []int) {
 		} else {
 			sb.WriteString(val)
 		}
+
 		if i < len(row)-1 {
 			sb.WriteString("  ")
 		}
 	}
+
 	sb.WriteString("\n")
 }
