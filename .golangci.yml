@@ -1,0 +1,72 @@
+version: "2"
+run:
+  issues-exit-code: 1
+  tests: false
+
+linters:
+  default: all
+  disable:
+    - bodyclose
+    - depguard
+    - err113
+    - exhaustruct
+    - forbidigo
+    - gochecknoglobals
+    - ireturn
+    - mnd
+    - noctx
+    - noinlineerr
+    - revive
+    - wrapcheck
+    - wsl
+    - varnamelen
+    - godox
+
+  settings:
+    cyclop:
+      max-complexity: 15
+    dupl:
+      threshold: 125
+    funlen:
+      lines: 109
+      statements: 50
+    gocognit:
+      min-complexity: 20
+    gocyclo:
+      min-complexity: 15
+    gocritic:
+      disabled-checks:
+        - deprecatedComment
+        - exitAfterDefer
+        - ifElseChain
+    godot:
+      period: false
+    lll:
+      line-length: 155
+      tab-width: 1
+    misspell:
+      locale: US
+    nakedret:
+      max-func-lines: 30
+    nestif:
+      min-complexity: 9
+    nlreturn:
+      block-size: 2
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+
+  exclusions:
+    generated: lax
+    paths:
+      - test/
+      - tools/
+      - vendor/
+    rules:
+      - path: internal/cmd/wh/args
+        linters:
+          - funlen
+      - path: internal/cmd/wh/wh.go
+        linters:
+          - funlen

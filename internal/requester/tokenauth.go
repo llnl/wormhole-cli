@@ -84,7 +84,7 @@ func (r *TokenAuthRequester[Request, Response]) do(ctx context.Context, method s
 	if err != nil {
 		return zero, fmt.Errorf("execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if r.logger != nil {
 		r.logger.Info("http request completed",
@@ -106,6 +106,7 @@ func (r *TokenAuthRequester[Request, Response]) do(ctx context.Context, method s
 		if err == io.EOF {
 			return zero, nil
 		}
+
 		return zero, fmt.Errorf("decode response: %w", err)
 	}
 
@@ -115,11 +116,12 @@ func (r *TokenAuthRequester[Request, Response]) do(ctx context.Context, method s
 func (r *TokenAuthRequester[Request, Response]) setHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Token", r.token)
-	req.Header.Set("accept", "application/json")
+	req.Header.Set("Accept", "application/json")
 }
 
 func (r *TokenAuthRequester[Request, Response]) marshalRequest(method string, request *Request) (io.Reader, error) {
 	if method == http.MethodGet || method == http.MethodDelete || request == nil {
+		//nolint:nilnil // intentional: no error and no meaningful value to return
 		return nil, nil
 	}
 

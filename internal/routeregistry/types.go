@@ -10,6 +10,7 @@ const MinIDLength = 8
 // Expanded types generated from route-registry.json schemas.
 
 type Identifiable interface {
+	//nolint:inamedparam // interface method, unnamed param is idiomatic
 	Matches(string) bool
 }
 
@@ -94,7 +95,7 @@ type HTTPValidationError struct {
 	Detail []ValidationError `json:"detail,omitempty"`
 }
 
-// match partial ID or full name
+// Matches matches a community by partial ID or full name.
 func (c *Community) Matches(identifier string) bool {
 	if c.Name == identifier || c.ID != nil && len(identifier) >= MinIDLength && strings.HasPrefix(*c.ID, identifier) {
 		return true
@@ -103,7 +104,7 @@ func (c *Community) Matches(identifier string) bool {
 	return false
 }
 
-// match partial ID or fully qualified name
+// Matches matches a route by partial ID or fully qualified name.
 func (r *Route) Matches(identifier string) bool {
 	if r.ID != nil && len(identifier) >= MinIDLength && strings.HasPrefix(*r.ID, identifier) {
 		return true
