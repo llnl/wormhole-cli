@@ -162,6 +162,19 @@ duplicate keys) > system config.
 `--config` and `--nodefaults` cannot be set from TOML files due to circular
 dependency with the config loading logic.
 
+Tunnel recovery policy is root-controlled and may only be set in
+`/etc/wormhole/cli.toml`:
+
+```toml
+[self-heal]
+min-retry-backoff = "100ms"
+max-retry-backoff = "15s"
+```
+
+These defaults are used when the section is absent. The system `self-heal`
+section is still read with `--nodefaults`; values in user config files and
+environment variables are ignored.
+
 ## Running
 
 ### Open a Wormhole
