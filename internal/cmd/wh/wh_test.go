@@ -10,10 +10,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v3"
+	"go.uber.org/mock/gomock"
 
 	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/llnl/wormhole-cli/internal/logctx"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
+	"github.com/llnl/wormhole-cli/test/mocks/mock_routeregistry"
 )
 
 func TestTasks_Structure(t *testing.T) {
@@ -176,4 +178,14 @@ func TestGlobalWrap_RegistryClientCreated(t *testing.T) {
 	})
 	cli.ActionFunc(wrapped)(ctx, &cli.Command{})
 	assert.True(t, registryOK)
+}
+
+func TestOpenWormholeRejectsNilRegistration(t *testing.T) {
+	registry := mock_routeregistry.NewMockRegistryService(gomock.NewController(t))
+	registry.EXPECT().RegisterRoute(gomock.Any(), "", "").Return(nil, nil)
+	a := &args.CLIArgs{Open: args.OpenArgs{AppPort: "8080", AllowedUsers: "test"}}
+
+	err := openWormhole(context.Background(), a, registry, testLogger(), false)
+
+	assert.ErrorContains(t, err, "route registration returned no response")
 }

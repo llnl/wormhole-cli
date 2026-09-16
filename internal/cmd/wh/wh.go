@@ -1,7 +1,6 @@
 package wh
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,19 +8,14 @@ import (
 	"log"
 	"log/slog"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 
-	piko "github.com/andydunstall/piko/client"
 	"github.com/urfave/cli/v3"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/llnl/wormhole-airlock/pkg/airlock"
@@ -34,23 +28,6 @@ import (
 type accessUserGroups struct {
 	Users  []string `json:"users"`
 	Groups []string `json:"groups"`
-}
-
-type createRouteOptionsV2 struct {
-	Name      string `json:"name"`
-	Community string `json:"community_name"`
-}
-
-type createRouteResponseV2 struct {
-	Url     string `json:"url"`
-	Airlock struct {
-		JwtIssuerUrl string `json:"jwt_issuer_url"`
-	} `json:"airlock"`
-	Tunnel struct {
-		URL        string `json:"url"`
-		JWT        string `json:"jwt"`
-		EndpointID string `json:"endpoint"`
-	} `json:"tunnel"`
 }
 
 type airlockAuthV1 struct {
@@ -80,8 +57,7 @@ type airlockConfig struct {
 }
 
 const (
-	jwksWellKnownSuffix  = ".well-known/jwks.json"
-	routeRegistryAPIPath = "/api/v2/route"
+	jwksWellKnownSuffix = ".well-known/jwks.json"
 )
 
 func intersect[T comparable](allowed, forbidden []T) []T {
@@ -94,78 +70,6 @@ func intersect[T comparable](allowed, forbidden []T) []T {
 	}
 
 	return intersectionSet
-}
-
-func registerRoute(token, endpoint string, options createRouteOptionsV2, logger *slog.Logger) (createRouteResponseV2, error) {
-	payload, err := json.Marshal(options)
-	if err != nil {
-		return createRouteResponseV2{}, err
-	}
-
-	logger.Info("Registering route",
-		slog.String("name", options.Name),
-		slog.String("endpoint", endpoint))
-
-	url, err := url.JoinPath(endpoint, routeRegistryAPIPath)
-	if err != nil {
-		return createRouteResponseV2{}, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
-	if err != nil {
-		return createRouteResponseV2{}, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Token", token)
-
-	// set a default timeout of 30s when creating route to prevent indefinite hangs
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	logger.Info("Sending route registration request")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return createRouteResponseV2{}, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	logger.Info("Received response", slog.Int("status_code", resp.StatusCode))
-
-	if err := handleRouteResponse(resp); err != nil {
-		return createRouteResponseV2{}, err
-	}
-
-	var result createRouteResponseV2
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return createRouteResponseV2{}, err
-	}
-
-	logger.Info("Route registered successfully",
-		slog.String("url", result.Url),
-		slog.String("tunnel_endpoint", result.Tunnel.EndpointID))
-
-	return result, nil
-}
-
-// handleRouteResponse checks the HTTP status code and returns an error for
-// non-successful responses.
-func handleRouteResponse(resp *http.Response) error {
-	switch resp.StatusCode {
-	case http.StatusNotFound:
-		return errors.New("unable to create route: invalid URL [404]")
-	case http.StatusUnauthorized:
-		return errors.New("unable to create route: invalid token [401]")
-	case http.StatusMovedPermanently:
-		return errors.New("unable to create route: url has moved [301]")
-	case http.StatusOK:
-		return nil
-	default:
-		return fmt.Errorf("unable to create route [%d]", resp.StatusCode)
-	}
 }
 
 func launchAirlock(g *errgroup.Group, ctx context.Context, token string, config airlockConfig, verbose bool) error {
@@ -225,70 +129,11 @@ func launchAirlock(g *errgroup.Group, ctx context.Context, token string, config 
 	return nil
 }
 
-func launchPiko(g *errgroup.Group, ctx context.Context, jwt, endpointURL, endpointID, targetAddr string, verbose bool) error {
-	// create logger for piko with appropriate log level
-	config := zap.NewProductionConfig()
-	if verbose {
-		config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	} else {
-		config.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
-	}
-
-	logger, err := config.Build()
-	if err != nil {
-		return fmt.Errorf("failed to create logger for piko: %w", err)
-	}
-	defer func() { _ = logger.Sync() }()
-
-	// parse relay endpoint URL
-	pikoURL, err := url.Parse(endpointURL)
-	if err != nil {
-		return err
-	}
-
-	// construct piko config
-	upstream := &piko.Upstream{
-		Logger: logger,
-		Token:  jwt,
-		URL:    pikoURL,
-	}
-
-	g.Go(func() error {
-		forwarder, err := upstream.ListenAndForward(
-			ctx, endpointID, targetAddr,
-		)
-		if err != nil {
-			return fmt.Errorf("piko listen: %w", err)
-		}
-		defer func() { _ = forwarder.Close() }()
-
-		if err := forwarder.Wait(); err != nil {
-			return fmt.Errorf("piko forwarder: %w", err)
-		}
-
-		return nil
-	})
-
-	return nil
-}
-
-func doAsync(f func() error) chan error {
-	done := make(chan error, 1)
-	go func() {
-		done <- f()
-
-		close(done)
-	}()
-
-	return done
-}
-
-// TODO convert route registration to use service layer.
 func handleOpen(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, service routeregistry.RegistryService, logger *slog.Logger) error {
 	verbose := a.Global.Verbose
 
 	sidecar := func(cCtx context.Context) error {
-		return openWormhole(cCtx, a, logger, verbose)
+		return openWormhole(cCtx, a, service, logger, verbose)
 	}
 
 	if cCmd.NArg() > 0 {
@@ -316,20 +161,14 @@ func handleOpen(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, service
 	}
 }
 
-func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, verbose bool) error {
+func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger, verbose bool) error {
 	fmt.Printf("Using wormhole-cli v%s\n", version.GetVersion())
 
 	token := a.Global.Token
-	endpoint := a.Global.Endpoint
 
 	port, err := strconv.Atoi(a.Open.AppPort)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	routeOptions := createRouteOptionsV2{
-		Name:      a.Open.Name,
-		Community: a.Open.Community,
 	}
 
 	splitFn := func(c rune) bool {
@@ -364,6 +203,33 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 	forwardUserHeader := a.Open.ForwardedHeaderUser
 	forwardGroupsHeader := a.Open.ForwardedHeaderGroups
 
+	selfHeal := a.SelfHeal
+	if selfHeal.MinRetryBackoff == 0 && selfHeal.MaxRetryBackoff == 0 {
+		selfHeal = args.DefaultSelfHealArgs()
+	}
+	if err := selfHeal.Validate(); err != nil {
+		return err
+	}
+	runtime := defaultRetryRuntime()
+	register := func(registerCtx context.Context) (*routeregistry.RegistrationResponse, error) {
+		return registerRouteWithRetry(registerCtx, registry.RegisterRoute, a.Open.Community, a.Open.Name, selfHeal, logger, runtime)
+	}
+	pikoLogger, err := newPikoLogger(verbose)
+	if err != nil {
+		return fmt.Errorf("create Piko logger: %w", err)
+	}
+	defer func() { _ = pikoLogger.Sync() }()
+	routeData, err := register(ctx)
+	if err != nil {
+		return err
+	}
+	if routeData == nil {
+		return errors.New("route registration returned no response")
+	}
+	if routeData.Airlock.JwtIssuerURL == nil || *routeData.Airlock.JwtIssuerURL == "" {
+		return errors.New("route registration response is missing Airlock JWT issuer URL")
+	}
+
 	// briefly open a tcp socket to get a random open port then use that port for airlock
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -373,16 +239,11 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 	addr := listener.Addr().String()
 	_ = listener.Close()
 
-	routeData, err := registerRoute(token, endpoint, routeOptions, logger)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// construct config for Airlock
 	airlockConfig := airlockConfig{
 		Addr:                addr,
 		TargetPort:          port,
-		JwksEndpoint:        routeData.Airlock.JwtIssuerUrl,
+		JwksEndpoint:        *routeData.Airlock.JwtIssuerURL,
 		AllowedUsers:        allowedUsers,
 		AllowedGroups:       allowedGroups,
 		ForbiddenUsers:      forbiddenUsers,
@@ -402,40 +263,25 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, logger *slog.Logger, ver
 		return fmt.Errorf("airlock error: %w", err)
 	}
 
-	// launch internal piko relay and point it at airlock
-	err = launchPiko(g, gCtx, routeData.Tunnel.JWT, routeData.Tunnel.URL, routeData.Tunnel.EndpointID, airlockConfig.Addr, verbose)
-	if err != nil {
-		return fmt.Errorf("piko error: %w", err)
-	}
-
-	log.Printf("Successfully Opened a Wormhole!\n")
-	log.Printf("URL: %s\n", routeData.Url)
-
-	done := doAsync(func() error {
-		if err := g.Wait(); err != nil {
-			return fmt.Errorf("wormhole error: %w", err)
+	g.Go(func() error {
+		refresh := func(refreshCtx context.Context, jwt string) (string, error) {
+			return refreshJWTWithRetry(refreshCtx, registry.RefreshJWT, jwt, selfHeal, logger, runtime)
 		}
-
-		return nil
+		listen := func(listenCtx context.Context, credentials tunnelCredentials, targetAddr string, config args.SelfHealArgs) (tunnelForwarder, error) {
+			return pikoListenAndForward(listenCtx, credentials, targetAddr, config, pikoLogger)
+		}
+		err := runSelfHealingTunnel(gCtx, routeData, register, refresh, listen, airlockConfig.Addr, selfHeal, logger, func(publicURL string) {
+			log.Printf("Successfully Opened a Wormhole!\n")
+			log.Printf("URL: %s\n", publicURL)
+		})
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
+			return nil
+		}
+		return err
 	})
 
-	select {
-	case <-gCtx.Done():
-		// remove SIGINT if airlock switches to accepting context cancellation
-		_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-
-		for {
-			// send SIGINT until terminate
-			// workaround for child process exiting before airlock is listening for SIGINT
-			timeout := time.After(100 * time.Millisecond)
-			select {
-			case <-done:
-				return nil
-			case <-timeout:
-				_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-			}
-		}
-	case err := <-done:
-		return err
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("wormhole error: %w", err)
 	}
+	return nil
 }
