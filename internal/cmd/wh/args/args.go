@@ -1,6 +1,9 @@
 package args
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/urfave/cli/v3"
 )
 
@@ -18,6 +21,8 @@ const (
 	DefaultName                  = ""
 	DefaultPodmanCompat          = false
 	DefaultToken                 = ""
+	DefaultMinRetryBackoff       = 100 * time.Millisecond
+	DefaultMaxRetryBackoff       = 15 * time.Second
 )
 
 const (
@@ -42,6 +47,35 @@ const (
 type CLIArgs struct {
 	Global GlobalArgs
 	Open   OpenArgs
+	// SelfHeal is loaded exclusively from /etc/wormhole/cli.toml. It is
+	// intentionally not represented by flags or environment value sources.
+	SelfHeal SelfHealArgs
+}
+
+// SelfHealArgs controls retry behavior for `wh open`.
+type SelfHealArgs struct {
+	MinRetryBackoff time.Duration
+	MaxRetryBackoff time.Duration
+}
+
+func DefaultSelfHealArgs() SelfHealArgs {
+	return SelfHealArgs{
+		MinRetryBackoff: DefaultMinRetryBackoff,
+		MaxRetryBackoff: DefaultMaxRetryBackoff,
+	}
+}
+
+func (a SelfHealArgs) Validate() error {
+	if a.MinRetryBackoff <= 0 {
+		return fmt.Errorf("self-heal.min-retry-backoff must be positive")
+	}
+	if a.MaxRetryBackoff <= 0 {
+		return fmt.Errorf("self-heal.max-retry-backoff must be positive")
+	}
+	if a.MinRetryBackoff > a.MaxRetryBackoff {
+		return fmt.Errorf("self-heal.min-retry-backoff must not exceed max-retry-backoff")
+	}
+	return nil
 }
 
 // GlobalArgs holds values for flags defined on the root command.

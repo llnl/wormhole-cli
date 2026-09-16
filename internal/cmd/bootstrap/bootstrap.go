@@ -12,6 +12,23 @@ import (
 
 const systemConfigPath = "/etc/wormhole/cli.toml"
 
+// LoadSelfHeal always reads retry policy from the system configuration.
+// This ignores --nodefaults and user configuration files.
+func LoadSelfHeal() (args.SelfHealArgs, error) {
+	data, err := os.ReadFile(systemConfigPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return args.DefaultSelfHealArgs(), nil
+		}
+		return args.SelfHealArgs{}, fmt.Errorf("system config %s: %w", systemConfigPath, err)
+	}
+	config, err := args.ParseSelfHeal(data, systemConfigPath)
+	if err != nil {
+		return args.SelfHealArgs{}, fmt.Errorf("system config %s: %w", systemConfigPath, err)
+	}
+	return config, nil
+}
+
 // Run performs the two-pass bootstrap:
 //  1. Parse --config and --nodefaults (silently ignoring other args).
 //  2. Load TOML files into MapSources, returning them for the flag Sources chain.
