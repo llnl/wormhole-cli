@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -166,13 +167,30 @@ func credentialsFromRegistration(registration *routeregistry.RegistrationRespons
 // Retryable connection failures remain internal to Upstream.
 func pikoAuthenticationFailure(err error) bool { return strings.Contains(err.Error(), "401:") }
 
-func newPikoLogger(verbose bool) (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	if verbose {
-		config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	} else {
-		config.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+type quietPikoLogger struct{}
+
+// Make it so that Piko logs are suppressed when in non-verbose mode
+// Only print out minimal information for retries
+// Piko does not give useful events for us to utilize, so we have to rely on this brittle solution
+func (quietPikoLogger) log(msg string) {
+	switch msg {
+	case "disconnected; reconnecting", "connect failed; retrying", "connected":
+		log.Printf("%s", msg)
 	}
+}
+
+func (l quietPikoLogger) Debug(msg string, _ ...zap.Field) { l.log(msg) }
+func (l quietPikoLogger) Info(msg string, _ ...zap.Field)  { l.log(msg) }
+func (l quietPikoLogger) Warn(msg string, _ ...zap.Field)  { l.log(msg) }
+func (l quietPikoLogger) Error(msg string, _ ...zap.Field) { l.log(msg) }
+func (quietPikoLogger) Sync() error                        { return nil }
+
+func newPikoLogger(verbose bool) (client.Logger, error) {
+	if !verbose {
+		return quietPikoLogger{}, nil
+	}
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	return config.Build()
 }
 
