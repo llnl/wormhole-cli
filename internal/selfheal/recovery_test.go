@@ -44,14 +44,14 @@ func newFailedForwarder(err error) *fakeForwarder {
 	return forwarder
 }
 
-func ptr(value string) *string { return &value }
 func testRegistration(routeURL, jwt, endpoint string) *routeregistry.RegistrationResponse {
+	pikoURL := "https://piko.example"
 	return &routeregistry.RegistrationResponse{
 		URL: routeURL,
 		Tunnel: routeregistry.Tunnel{
-			URL:      ptr("https://piko.example"),
-			JWT:      ptr(jwt),
-			Endpoint: ptr(endpoint),
+			URL:      &pikoURL,
+			JWT:      &jwt,
+			Endpoint: &endpoint,
 		},
 	}
 }
@@ -289,14 +289,18 @@ func TestConnectedRefreshedJWTCanRefreshAgainAfterLaterAuthenticationFailure(t *
 
 func TestCredentialsFromRegistrationRejectsIncompleteTunnel(t *testing.T) {
 	valid := testRegistration("https://route", "jwt", "endpoint")
+	pikoURL := "https://piko.example"
+	jwt := "jwt"
+	endpoint := "endpoint"
+	empty := ""
 	for name, registration := range map[string]*routeregistry.RegistrationResponse{
 		"nil response":     nil,
-		"missing URL":      {Tunnel: routeregistry.Tunnel{JWT: ptr("jwt"), Endpoint: ptr("endpoint")}},
-		"missing JWT":      {Tunnel: routeregistry.Tunnel{URL: ptr("https://piko.example"), Endpoint: ptr("endpoint")}},
-		"missing endpoint": {Tunnel: routeregistry.Tunnel{URL: ptr("https://piko.example"), JWT: ptr("jwt")}},
-		"empty URL":        {Tunnel: routeregistry.Tunnel{URL: ptr(""), JWT: ptr("jwt"), Endpoint: ptr("endpoint")}},
-		"empty JWT":        {Tunnel: routeregistry.Tunnel{URL: ptr("https://piko.example"), JWT: ptr(""), Endpoint: ptr("endpoint")}},
-		"empty endpoint":   {Tunnel: routeregistry.Tunnel{URL: ptr("https://piko.example"), JWT: ptr("jwt"), Endpoint: ptr("")}},
+		"missing URL":      {Tunnel: routeregistry.Tunnel{JWT: &jwt, Endpoint: &endpoint}},
+		"missing JWT":      {Tunnel: routeregistry.Tunnel{URL: &pikoURL, Endpoint: &endpoint}},
+		"missing endpoint": {Tunnel: routeregistry.Tunnel{URL: &pikoURL, JWT: &jwt}},
+		"empty URL":        {Tunnel: routeregistry.Tunnel{URL: &empty, JWT: &jwt, Endpoint: &endpoint}},
+		"empty JWT":        {Tunnel: routeregistry.Tunnel{URL: &pikoURL, JWT: &empty, Endpoint: &endpoint}},
+		"empty endpoint":   {Tunnel: routeregistry.Tunnel{URL: &pikoURL, JWT: &jwt, Endpoint: &empty}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := credentialsFromRegistration(registration)
