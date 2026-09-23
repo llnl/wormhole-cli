@@ -53,7 +53,7 @@ func TestTasks_Structure(t *testing.T) {
 				names[n] = true
 			}
 		}
-		for _, expected := range []string{"name", "community", "app-port", "allowed-users", "allowed-groups", "forbidden-users", "forbidden-groups", "forwarded-header-user", "forwarded-header-groups"} {
+		for _, expected := range []string{"name", "community", "app-port", "allowed-users", "allowed-groups", "forbidden-users", "forbidden-groups", "forwarded-header-user", "forwarded-header-groups", "min-retry-backoff", "max-retry-backoff"} {
 			assert.True(t, names[expected], "missing open flag %q", expected)
 		}
 	})

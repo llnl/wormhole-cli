@@ -21,7 +21,8 @@ const (
 	DefaultName                  = ""
 	DefaultPodmanCompat          = false
 	DefaultToken                 = ""
-	DefaultMinRetryBackoff       = 100 * time.Millisecond
+	MinimumRetryBackoff          = 100 * time.Millisecond
+	DefaultMinRetryBackoff       = MinimumRetryBackoff
 	DefaultMaxRetryBackoff       = 15 * time.Second
 )
 
@@ -45,10 +46,8 @@ const (
 // CLIArgs is the superset of all CLI configuration. It composes
 // GlobalArgs (root-level flags) and OpenArgs (open subcommand flags).
 type CLIArgs struct {
-	Global GlobalArgs
-	Open   OpenArgs
-	// SelfHeal is loaded exclusively from /etc/wormhole/cli.toml. It is
-	// intentionally not represented by flags or environment value sources.
+	Global   GlobalArgs
+	Open     OpenArgs
 	SelfHeal SelfHealArgs
 }
 
@@ -66,14 +65,14 @@ func DefaultSelfHealArgs() SelfHealArgs {
 }
 
 func (a SelfHealArgs) Validate() error {
-	if a.MinRetryBackoff <= 0 {
-		return fmt.Errorf("self-heal.min-retry-backoff must be positive")
+	if a.MinRetryBackoff < MinimumRetryBackoff {
+		return fmt.Errorf("min-retry-backoff must be at least %s", MinimumRetryBackoff)
 	}
 	if a.MaxRetryBackoff <= 0 {
-		return fmt.Errorf("self-heal.max-retry-backoff must be positive")
+		return fmt.Errorf("max-retry-backoff must be positive")
 	}
 	if a.MinRetryBackoff > a.MaxRetryBackoff {
-		return fmt.Errorf("self-heal.min-retry-backoff must not exceed max-retry-backoff")
+		return fmt.Errorf("min-retry-backoff must not exceed max-retry-backoff")
 	}
 	return nil
 }

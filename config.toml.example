@@ -56,8 +56,8 @@
 # Set Authorization: Bearer header (hidden, default: false).
 # auth-bearer-header = false
 
-# The self-heal section is accepted only in /etc/wormhole/cli.toml. It is
-# always applied, even with --nodefaults, and cannot be overridden by users.
-# [self-heal]
+# Minimum delay between tunnel recovery attempts (default and lower bound: 100ms).
 # min-retry-backoff = "100ms"
+
+# Maximum delay between tunnel recovery attempts (default: 15s).
 # max-retry-backoff = "15s"
