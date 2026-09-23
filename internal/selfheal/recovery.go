@@ -1,40 +1,25 @@
-package wh
+package selfheal
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"math/rand/v2"
 	"net"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
-	"github.com/andydunstall/piko/client"
 	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
+	wormholepiko "github.com/llnl/wormhole-cli/internal/piko"
 	"github.com/llnl/wormhole-cli/internal/requester"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
-	"go.uber.org/zap"
 )
-
-type tunnelCredentials struct {
-	URL        string
-	JWT        string
-	EndpointID string
-}
 
 type routeRegisterFunc func(context.Context, string, string) (*routeregistry.RegistrationResponse, error)
 type jwtRefreshFunc func(context.Context, string) (string, error)
-type listenAndForwardFunc func(context.Context, tunnelCredentials, string, args.SelfHealArgs) (tunnelForwarder, error)
-
-type tunnelForwarder interface {
-	Close() error
-	Wait() error
-}
+type listenAndForwardFunc func(context.Context, wormholepiko.Credentials, string, args.SelfHealArgs) (wormholepiko.Forwarder, error)
 
 type retryRuntime struct {
 	sleep  func(context.Context, time.Duration) error
@@ -148,73 +133,33 @@ func refreshJWTWithRetry(
 	return result, nil
 }
 
-func credentialsFromRegistration(registration *routeregistry.RegistrationResponse) (tunnelCredentials, error) {
+func credentialsFromRegistration(registration *routeregistry.RegistrationResponse) (wormholepiko.Credentials, error) {
 	if registration == nil || registration.Tunnel.URL == nil || registration.Tunnel.JWT == nil || registration.Tunnel.Endpoint == nil {
-		return tunnelCredentials{}, errors.New("route registration response is missing tunnel credentials")
+		return wormholepiko.Credentials{}, errors.New("route registration response is missing tunnel credentials")
 	}
 	if *registration.Tunnel.URL == "" || *registration.Tunnel.JWT == "" || *registration.Tunnel.Endpoint == "" {
-		return tunnelCredentials{}, errors.New("route registration response contains empty tunnel credentials")
+		return wormholepiko.Credentials{}, errors.New("route registration response contains empty tunnel credentials")
 	}
-	return tunnelCredentials{
+	return wormholepiko.Credentials{
 		URL:        *registration.Tunnel.URL,
 		JWT:        *registration.Tunnel.JWT,
 		EndpointID: *registration.Tunnel.Endpoint,
 	}, nil
 }
 
-// Piko v0.8.1 exposes terminal authentication status only through formatted
-// error text. Replace this with typed matching if upstream adds such an API.
-// Retryable connection failures remain internal to Upstream.
-func pikoAuthenticationFailure(err error) bool { return strings.Contains(err.Error(), "401:") }
-
-type quietPikoLogger struct{}
-
-// Make it so that Piko logs are suppressed when in non-verbose mode
-// Only print out minimal information for retries
-// Piko does not give useful events for us to utilize, so we have to rely on this brittle solution
-func (quietPikoLogger) log(msg string) {
-	switch msg {
-	case "disconnected; reconnecting", "connect failed; retrying", "connected":
-		log.Printf("%s", msg)
-	}
-}
-
-func (l quietPikoLogger) Debug(msg string, _ ...zap.Field) { l.log(msg) }
-func (l quietPikoLogger) Info(msg string, _ ...zap.Field)  { l.log(msg) }
-func (l quietPikoLogger) Warn(msg string, _ ...zap.Field)  { l.log(msg) }
-func (l quietPikoLogger) Error(msg string, _ ...zap.Field) { l.log(msg) }
-func (quietPikoLogger) Sync() error                        { return nil }
-
-func newPikoLogger(verbose bool) (client.Logger, error) {
-	if !verbose {
-		return quietPikoLogger{}, nil
-	}
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	return config.Build()
-}
-
-func pikoListenAndForward(
+// RegisterRoute performs route registration and retries transient failures.
+func RegisterRoute(
 	ctx context.Context,
-	credentials tunnelCredentials,
-	targetAddr string,
+	register routeRegisterFunc,
+	community, name string,
 	config args.SelfHealArgs,
-	logger client.Logger,
-) (tunnelForwarder, error) {
-	endpoint, err := url.Parse(credentials.URL)
-	if err != nil {
-		return nil, fmt.Errorf("parse Piko URL: %w", err)
-	}
-	return (&client.Upstream{
-		URL:                 endpoint,
-		Token:               credentials.JWT,
-		MinReconnectBackoff: config.MinRetryBackoff,
-		MaxReconnectBackoff: config.MaxRetryBackoff,
-		Logger:              logger,
-	}).ListenAndForward(ctx, credentials.EndpointID, targetAddr)
+	logger *slog.Logger,
+) (*routeregistry.RegistrationResponse, error) {
+	return registerRouteWithRetry(ctx, register, community, name, config, logger, defaultRetryRuntime())
 }
 
-func runSelfHealingTunnel(
+// Run maintains the tunnel, refreshing or replacing rejected credentials.
+func Run(
 	ctx context.Context,
 	initial *routeregistry.RegistrationResponse,
 	register func(context.Context) (*routeregistry.RegistrationResponse, error),
@@ -224,6 +169,21 @@ func runSelfHealingTunnel(
 	config args.SelfHealArgs,
 	logger *slog.Logger,
 	onFirstConnect func(string),
+) error {
+	return run(ctx, initial, register, refresh, listen, targetAddr, config, logger, onFirstConnect, defaultRetryRuntime())
+}
+
+func run(
+	ctx context.Context,
+	initial *routeregistry.RegistrationResponse,
+	register func(context.Context) (*routeregistry.RegistrationResponse, error),
+	refresh jwtRefreshFunc,
+	listen listenAndForwardFunc,
+	targetAddr string,
+	config args.SelfHealArgs,
+	logger *slog.Logger,
+	onFirstConnect func(string),
+	runtime retryRuntime,
 ) error {
 	registration := initial
 	rotated := false
@@ -240,10 +200,6 @@ func runSelfHealingTunnel(
 				onFirstConnect(registration.URL)
 				firstConnection = false
 			}
-			// A refreshed JWT has proved usable once it establishes a tunnel. A
-			// later 401 is a new credential-expiry event, so allow one more
-			// refresh and re-registration. Keep both guards set only while their
-			// replacement credentials have not established a tunnel.
 			rotated = false
 			reRegistered = false
 			wait := make(chan error, 1)
@@ -264,14 +220,14 @@ func runSelfHealingTunnel(
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if !pikoAuthenticationFailure(err) {
+		if !wormholepiko.AuthenticationFailure(err) {
 			return fmt.Errorf("connect to Piko: %w", err)
 		}
 		if rotated {
 			return fmt.Errorf("connect to Piko with refreshed JWT: %w", err)
 		}
 		logger.Warn("Piko credentials rejected; refreshing JWT")
-		jwt, refreshErr := refresh(ctx, credentials.JWT)
+		jwt, refreshErr := refreshJWTWithRetry(ctx, refresh, credentials.JWT, config, logger, runtime)
 		if refreshErr == nil {
 			registration.Tunnel.JWT = &jwt
 			rotated = true

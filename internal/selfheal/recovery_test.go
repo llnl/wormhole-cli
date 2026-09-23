@@ -1,12 +1,10 @@
-package wh
+package selfheal
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -15,10 +13,10 @@ import (
 	"time"
 
 	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
+	wormholepiko "github.com/llnl/wormhole-cli/internal/piko"
 	"github.com/llnl/wormhole-cli/internal/requester"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 type fakeForwarder struct {
@@ -137,39 +135,6 @@ func TestRetryDelayRemainsRandomAtMaximum(t *testing.T) {
 	assert.Equal(t, 4*time.Second, nextRetryDelay(4*time.Second, time.Second, 4*time.Second, func() float64 { return 1 }))
 }
 
-func TestNewPikoLoggerHonorsVerbose(t *testing.T) {
-	quiet, err := newPikoLogger(false)
-	assert.NoError(t, err)
-
-	var output bytes.Buffer
-	originalOutput := log.Writer()
-	originalFlags := log.Flags()
-	originalPrefix := log.Prefix()
-	log.SetOutput(&output)
-	log.SetFlags(0)
-	log.SetPrefix("")
-	t.Cleanup(func() {
-		log.SetOutput(originalOutput)
-		log.SetFlags(originalFlags)
-		log.SetPrefix(originalPrefix)
-	})
-
-	quiet.Debug("disconnected; reconnecting", zap.String("error", "hidden"))
-	quiet.Info("connect failed; retrying", zap.Int("attempt", 2))
-	quiet.Warn("connected", zap.String("address", "hidden"))
-	quiet.Debug("unrelated debug")
-	quiet.Warn("unrelated warning")
-	quiet.Error("unrelated error")
-	assert.Equal(t, "disconnected; reconnecting\nconnect failed; retrying\nconnected\n", output.String())
-
-	verbose, err := newPikoLogger(true)
-	assert.NoError(t, err)
-	defer func() { _ = verbose.Sync() }()
-	zapLogger, ok := verbose.(*zap.Logger)
-	assert.True(t, ok)
-	assert.NotNil(t, zapLogger.Check(zap.DebugLevel, "debug"))
-}
-
 func TestPikoAuthenticationRefreshesJWT(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -177,7 +142,7 @@ func TestPikoAuthenticationRefreshesJWT(t *testing.T) {
 	var got []string
 	registrationCalls := 0
 	refreshedJWT := ""
-	listen := func(ctx context.Context, credentials tunnelCredentials, _ string, _ args.SelfHealArgs) (tunnelForwarder, error) {
+	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _ args.SelfHealArgs) (wormholepiko.Forwarder, error) {
 		got = append(got, credentials.JWT)
 		if len(got) == 1 {
 			return nil, errors.New("401: unauthorized")
@@ -185,13 +150,13 @@ func TestPikoAuthenticationRefreshesJWT(t *testing.T) {
 		cancel()
 		return forwarder, nil
 	}
-	err := runSelfHealingTunnel(ctx, testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
+	err := run(ctx, testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
 		registrationCalls++
 		return nil, errors.New("unexpected registration")
 	}, func(_ context.Context, jwt string) (string, error) {
 		refreshedJWT = jwt
 		return "new", nil
-	}, listen, "target", testConfig(), testLogger(), func(string) {})
+	}, listen, "target", testConfig(), testLogger(), func(string) {}, defaultRetryRuntime())
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, []string{"old", "new"}, got)
 	assert.Equal(t, "old", refreshedJWT)
@@ -204,7 +169,7 @@ func TestRefreshUnauthorizedRegistersOnce(t *testing.T) {
 	defer cancel()
 	registrations := 0
 	attempts := 0
-	listen := func(ctx context.Context, credentials tunnelCredentials, _ string, _ args.SelfHealArgs) (tunnelForwarder, error) {
+	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _ args.SelfHealArgs) (wormholepiko.Forwarder, error) {
 		attempts++
 		if attempts == 1 {
 			return nil, errors.New("401: unauthorized")
@@ -213,27 +178,27 @@ func TestRefreshUnauthorizedRegistersOnce(t *testing.T) {
 		cancel()
 		return newFakeForwarder(), nil
 	}
-	err := runSelfHealingTunnel(ctx, testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
+	err := run(ctx, testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
 		registrations++
 		return testRegistration("https://route", "registered", "two"), nil
 	}, func(context.Context, string) (string, error) {
 		return "", requester.HttpResponseError{Code: http.StatusUnauthorized}
-	}, listen, "target", testConfig(), testLogger(), func(string) {})
+	}, listen, "target", testConfig(), testLogger(), func(string) {}, defaultRetryRuntime())
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, 1, registrations)
 }
 
 func TestRepeatedRefreshUnauthorizedAfterReregistrationStops(t *testing.T) {
 	registrations, refreshes := 0, 0
-	err := runSelfHealingTunnel(context.Background(), testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
+	err := run(context.Background(), testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
 		registrations++
 		return testRegistration("https://route", "registered", "two"), nil
 	}, func(context.Context, string) (string, error) {
 		refreshes++
 		return "", requester.HttpResponseError{Code: http.StatusUnauthorized}
-	}, func(context.Context, tunnelCredentials, string, args.SelfHealArgs) (tunnelForwarder, error) {
+	}, func(context.Context, wormholepiko.Credentials, string, args.SelfHealArgs) (wormholepiko.Forwarder, error) {
 		return nil, errors.New("401: unauthorized")
-	}, "target", testConfig(), testLogger(), func(string) {})
+	}, "target", testConfig(), testLogger(), func(string) {}, defaultRetryRuntime())
 
 	assert.ErrorIs(t, err, requester.HttpResponseError{Code: http.StatusUnauthorized})
 	assert.Equal(t, 1, registrations)
@@ -242,12 +207,12 @@ func TestRepeatedRefreshUnauthorizedAfterReregistrationStops(t *testing.T) {
 
 func TestFreshJWTAuthenticationFailureDoesNotLoop(t *testing.T) {
 	attempts, refreshes := 0, 0
-	err := runSelfHealingTunnel(context.Background(), testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
+	err := run(context.Background(), testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
 		return nil, errors.New("unexpected")
-	}, func(context.Context, string) (string, error) { refreshes++; return "new", nil }, func(context.Context, tunnelCredentials, string, args.SelfHealArgs) (tunnelForwarder, error) {
+	}, func(context.Context, string) (string, error) { refreshes++; return "new", nil }, func(context.Context, wormholepiko.Credentials, string, args.SelfHealArgs) (wormholepiko.Forwarder, error) {
 		attempts++
 		return nil, errors.New("401: unauthorized")
-	}, "target", testConfig(), testLogger(), func(string) {})
+	}, "target", testConfig(), testLogger(), func(string) {}, defaultRetryRuntime())
 	assert.Error(t, err)
 	assert.Equal(t, 2, attempts)
 	assert.Equal(t, 1, refreshes)
@@ -258,7 +223,7 @@ func TestConnectedRefreshedJWTCanRefreshAgainAfterLaterAuthenticationFailure(t *
 	defer cancel()
 	var got []string
 	refreshes := 0
-	listen := func(ctx context.Context, credentials tunnelCredentials, _ string, _ args.SelfHealArgs) (tunnelForwarder, error) {
+	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _ args.SelfHealArgs) (wormholepiko.Forwarder, error) {
 		got = append(got, credentials.JWT)
 		switch credentials.JWT {
 		case "old":
@@ -273,7 +238,7 @@ func TestConnectedRefreshedJWTCanRefreshAgainAfterLaterAuthenticationFailure(t *
 		}
 	}
 
-	err := runSelfHealingTunnel(ctx, testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
+	err := run(ctx, testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
 		return nil, errors.New("unexpected registration")
 	}, func(_ context.Context, jwt string) (string, error) {
 		refreshes++
@@ -281,7 +246,7 @@ func TestConnectedRefreshedJWTCanRefreshAgainAfterLaterAuthenticationFailure(t *
 			return "first-refresh", nil
 		}
 		return "second-refresh", nil
-	}, listen, "target", testConfig(), testLogger(), func(string) {})
+	}, listen, "target", testConfig(), testLogger(), func(string) {}, defaultRetryRuntime())
 
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, []string{"old", "first-refresh", "second-refresh"}, got)
@@ -307,5 +272,5 @@ func TestCredentialsFromRegistrationRejectsIncompleteTunnel(t *testing.T) {
 
 	got, err := credentialsFromRegistration(valid)
 	assert.NoError(t, err)
-	assert.Equal(t, tunnelCredentials{URL: "https://piko.example", JWT: "jwt", EndpointID: "endpoint"}, got)
+	assert.Equal(t, wormholepiko.Credentials{URL: "https://piko.example", JWT: "jwt", EndpointID: "endpoint"}, got)
 }

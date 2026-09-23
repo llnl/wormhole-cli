@@ -21,7 +21,9 @@ import (
 	"github.com/llnl/wormhole-airlock/pkg/airlock"
 	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/llnl/wormhole-cli/internal/ns"
+	wormholepiko "github.com/llnl/wormhole-cli/internal/piko"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
+	"github.com/llnl/wormhole-cli/internal/selfheal"
 	"github.com/llnl/wormhole-cli/internal/version"
 )
 
@@ -210,11 +212,10 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 	if err := selfHeal.Validate(); err != nil {
 		return err
 	}
-	runtime := defaultRetryRuntime()
 	register := func(registerCtx context.Context) (*routeregistry.RegistrationResponse, error) {
-		return registerRouteWithRetry(registerCtx, registry.RegisterRoute, a.Open.Community, a.Open.Name, selfHeal, logger, runtime)
+		return selfheal.RegisterRoute(registerCtx, registry.RegisterRoute, a.Open.Community, a.Open.Name, selfHeal, logger)
 	}
-	pikoLogger, err := newPikoLogger(verbose)
+	pikoLogger, err := wormholepiko.NewLogger(verbose)
 	if err != nil {
 		return fmt.Errorf("create Piko logger: %w", err)
 	}
@@ -264,13 +265,10 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 	}
 
 	g.Go(func() error {
-		refresh := func(refreshCtx context.Context, jwt string) (string, error) {
-			return refreshJWTWithRetry(refreshCtx, registry.RefreshJWT, jwt, selfHeal, logger, runtime)
+		listen := func(listenCtx context.Context, credentials wormholepiko.Credentials, targetAddr string, config args.SelfHealArgs) (wormholepiko.Forwarder, error) {
+			return wormholepiko.ListenAndForward(listenCtx, credentials, targetAddr, config, pikoLogger)
 		}
-		listen := func(listenCtx context.Context, credentials tunnelCredentials, targetAddr string, config args.SelfHealArgs) (tunnelForwarder, error) {
-			return pikoListenAndForward(listenCtx, credentials, targetAddr, config, pikoLogger)
-		}
-		err := runSelfHealingTunnel(gCtx, routeData, register, refresh, listen, airlockConfig.Addr, selfHeal, logger, func(publicURL string) {
+		err := selfheal.Run(gCtx, routeData, register, registry.RefreshJWT, listen, airlockConfig.Addr, selfHeal, logger, func(publicURL string) {
 			log.Printf("Successfully Opened a Wormhole!\n")
 			log.Printf("URL: %s\n", publicURL)
 		})

@@ -2,6 +2,7 @@ package wh
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -185,7 +186,8 @@ func TestOpenWormholeRejectsNilRegistration(t *testing.T) {
 	registry.EXPECT().RegisterRoute(gomock.Any(), "", "").Return(nil, nil)
 	a := &args.CLIArgs{Open: args.OpenArgs{AppPort: "8080", AllowedUsers: "test"}}
 
-	err := openWormhole(context.Background(), a, registry, testLogger(), false)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	err := openWormhole(context.Background(), a, registry, logger, false)
 
 	assert.ErrorContains(t, err, "route registration returned no response")
 }
