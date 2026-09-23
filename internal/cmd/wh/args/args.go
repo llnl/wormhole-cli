@@ -1,6 +1,9 @@
 package args
 
-import "github.com/urfave/cli/v3"
+import (
+	"github.com/llnl/wormhole-cli/internal/selfheal"
+	"github.com/urfave/cli/v3"
+)
 
 const (
 	DefaultAllowedGroups         = ""
@@ -40,7 +43,7 @@ const (
 type CLIArgs struct {
 	Global   GlobalArgs
 	Open     OpenArgs
-	SelfHeal SelfHealArgs
+	SelfHeal selfheal.Config
 }
 
 // GlobalArgs holds values for flags defined on the root command.

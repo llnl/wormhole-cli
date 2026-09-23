@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	wormholepiko "github.com/llnl/wormhole-cli/internal/piko"
 	"github.com/llnl/wormhole-cli/internal/requester"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
@@ -19,7 +18,7 @@ import (
 
 type routeRegisterFunc func(context.Context, string, string) (*routeregistry.RegistrationResponse, error)
 type jwtRefreshFunc func(context.Context, string) (string, error)
-type listenAndForwardFunc func(context.Context, wormholepiko.Credentials, string, args.SelfHealArgs) (wormholepiko.Forwarder, error)
+type listenAndForwardFunc func(context.Context, wormholepiko.Credentials, string, time.Duration, time.Duration) (wormholepiko.Forwarder, error)
 
 type retryRuntime struct {
 	sleep  func(context.Context, time.Duration) error
@@ -90,7 +89,7 @@ func registrationRetryable(err error) bool {
 func retryRouteRegistry[T any](
 	ctx context.Context,
 	operation func(context.Context) (T, error),
-	config args.SelfHealArgs,
+	config Config,
 	logger *slog.Logger,
 	runtime retryRuntime,
 ) (T, error) {
@@ -120,7 +119,7 @@ func registerRouteWithRetry(
 	ctx context.Context,
 	register routeRegisterFunc,
 	community, name string,
-	config args.SelfHealArgs,
+	config Config,
 	logger *slog.Logger,
 	runtime retryRuntime,
 ) (*routeregistry.RegistrationResponse, error) {
@@ -137,7 +136,7 @@ func refreshJWTWithRetry(
 	ctx context.Context,
 	refresh jwtRefreshFunc,
 	jwt string,
-	config args.SelfHealArgs,
+	config Config,
 	logger *slog.Logger,
 	runtime retryRuntime,
 ) (string, error) {
@@ -169,7 +168,7 @@ func RegisterRoute(
 	ctx context.Context,
 	register routeRegisterFunc,
 	community, name string,
-	config args.SelfHealArgs,
+	config Config,
 	logger *slog.Logger,
 ) (*routeregistry.RegistrationResponse, error) {
 	return registerRouteWithRetry(ctx, register, community, name, config, logger, defaultRetryRuntime())
@@ -183,7 +182,7 @@ func Run(
 	refresh jwtRefreshFunc,
 	listen listenAndForwardFunc,
 	targetAddr string,
-	config args.SelfHealArgs,
+	config Config,
 	logger *slog.Logger,
 	onFirstConnect func(string),
 ) error {
@@ -197,7 +196,7 @@ func run(
 	refresh jwtRefreshFunc,
 	listen listenAndForwardFunc,
 	targetAddr string,
-	config args.SelfHealArgs,
+	config Config,
 	logger *slog.Logger,
 	onFirstConnect func(string),
 	runtime retryRuntime,
@@ -211,7 +210,7 @@ func run(
 		if err != nil {
 			return err
 		}
-		forwarder, err := listen(ctx, credentials, targetAddr, config)
+		forwarder, err := listen(ctx, credentials, targetAddr, config.MinRetryBackoff, config.MaxRetryBackoff)
 		if err == nil {
 			if firstConnection {
 				onFirstConnect(registration.URL)

@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	wormholepiko "github.com/llnl/wormhole-cli/internal/piko"
 	"github.com/llnl/wormhole-cli/internal/requester"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
@@ -55,8 +54,8 @@ func testRegistration(routeURL, jwt, endpoint string) *routeregistry.Registratio
 		},
 	}
 }
-func testConfig() args.SelfHealArgs {
-	return args.SelfHealArgs{MinRetryBackoff: time.Second, MaxRetryBackoff: 4 * time.Second}
+func testConfig() Config {
+	return Config{MinRetryBackoff: time.Second, MaxRetryBackoff: 4 * time.Second}
 }
 func testLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 func testRuntime(delays *[]time.Duration) retryRuntime {
@@ -176,7 +175,7 @@ func TestPikoAuthenticationRefreshesJWT(t *testing.T) {
 	var got []string
 	registrationCalls := 0
 	refreshedJWT := ""
-	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _ args.SelfHealArgs) (wormholepiko.Forwarder, error) {
+	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _, _ time.Duration) (wormholepiko.Forwarder, error) {
 		got = append(got, credentials.JWT)
 		if len(got) == 1 {
 			return nil, errors.New("401: unauthorized")
@@ -203,7 +202,7 @@ func TestRefreshUnauthorizedRegistersOnce(t *testing.T) {
 	defer cancel()
 	registrations := 0
 	attempts := 0
-	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _ args.SelfHealArgs) (wormholepiko.Forwarder, error) {
+	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _, _ time.Duration) (wormholepiko.Forwarder, error) {
 		attempts++
 		if attempts == 1 {
 			return nil, errors.New("401: unauthorized")
@@ -230,7 +229,7 @@ func TestRepeatedRefreshUnauthorizedAfterReregistrationStops(t *testing.T) {
 	}, func(context.Context, string) (string, error) {
 		refreshes++
 		return "", requester.HttpResponseError{Code: http.StatusUnauthorized}
-	}, func(context.Context, wormholepiko.Credentials, string, args.SelfHealArgs) (wormholepiko.Forwarder, error) {
+	}, func(context.Context, wormholepiko.Credentials, string, time.Duration, time.Duration) (wormholepiko.Forwarder, error) {
 		return nil, errors.New("401: unauthorized")
 	}, "target", testConfig(), testLogger(), func(string) {}, defaultRetryRuntime())
 
@@ -243,7 +242,7 @@ func TestFreshJWTAuthenticationFailureDoesNotLoop(t *testing.T) {
 	attempts, refreshes := 0, 0
 	err := run(context.Background(), testRegistration("https://route", "old", "one"), func(context.Context) (*routeregistry.RegistrationResponse, error) {
 		return nil, errors.New("unexpected")
-	}, func(context.Context, string) (string, error) { refreshes++; return "new", nil }, func(context.Context, wormholepiko.Credentials, string, args.SelfHealArgs) (wormholepiko.Forwarder, error) {
+	}, func(context.Context, string) (string, error) { refreshes++; return "new", nil }, func(context.Context, wormholepiko.Credentials, string, time.Duration, time.Duration) (wormholepiko.Forwarder, error) {
 		attempts++
 		return nil, errors.New("401: unauthorized")
 	}, "target", testConfig(), testLogger(), func(string) {}, defaultRetryRuntime())
@@ -257,7 +256,7 @@ func TestConnectedRefreshedJWTCanRefreshAgainAfterLaterAuthenticationFailure(t *
 	defer cancel()
 	var got []string
 	refreshes := 0
-	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _ args.SelfHealArgs) (wormholepiko.Forwarder, error) {
+	listen := func(ctx context.Context, credentials wormholepiko.Credentials, _ string, _, _ time.Duration) (wormholepiko.Forwarder, error) {
 		got = append(got, credentials.JWT)
 		switch credentials.JWT {
 		case "old":

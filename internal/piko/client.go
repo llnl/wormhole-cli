@@ -6,9 +6,9 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/andydunstall/piko/client"
-	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"go.uber.org/zap"
 )
 
@@ -56,7 +56,8 @@ func ListenAndForward(
 	ctx context.Context,
 	credentials Credentials,
 	targetAddr string,
-	config args.SelfHealArgs,
+	minReconnectBackoff time.Duration,
+	maxReconnectBackoff time.Duration,
 	logger client.Logger,
 ) (Forwarder, error) {
 	endpoint, err := url.Parse(credentials.URL)
@@ -66,8 +67,8 @@ func ListenAndForward(
 	return (&client.Upstream{
 		URL:                 endpoint,
 		Token:               credentials.JWT,
-		MinReconnectBackoff: config.MinRetryBackoff,
-		MaxReconnectBackoff: config.MaxRetryBackoff,
+		MinReconnectBackoff: minReconnectBackoff,
+		MaxReconnectBackoff: maxReconnectBackoff,
 		Logger:              logger,
 	}).ListenAndForward(ctx, credentials.EndpointID, targetAddr)
 }

@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
@@ -207,7 +208,7 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 
 	selfHeal := a.SelfHeal
 	if selfHeal.MinRetryBackoff == 0 && selfHeal.MaxRetryBackoff == 0 {
-		selfHeal = args.DefaultSelfHealArgs()
+		selfHeal = selfheal.DefaultConfig()
 	}
 	if err := selfHeal.Validate(); err != nil {
 		return err
@@ -265,8 +266,8 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 	}
 
 	g.Go(func() error {
-		listen := func(listenCtx context.Context, credentials wormholepiko.Credentials, targetAddr string, config args.SelfHealArgs) (wormholepiko.Forwarder, error) {
-			return wormholepiko.ListenAndForward(listenCtx, credentials, targetAddr, config, pikoLogger)
+		listen := func(listenCtx context.Context, credentials wormholepiko.Credentials, targetAddr string, minBackoff, maxBackoff time.Duration) (wormholepiko.Forwarder, error) {
+			return wormholepiko.ListenAndForward(listenCtx, credentials, targetAddr, minBackoff, maxBackoff, pikoLogger)
 		}
 		err := selfheal.Run(gCtx, routeData, register, registry.RefreshJWT, listen, airlockConfig.Addr, selfHeal, logger, func(publicURL string) {
 			log.Printf("Successfully Opened a Wormhole!\n")
