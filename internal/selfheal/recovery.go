@@ -42,19 +42,36 @@ func defaultRetryRuntime() retryRuntime {
 	}
 }
 
-func nextRetryDelay(previous, minimum, maximum time.Duration, jitter func() float64) time.Duration {
-	delay := minimum
+func nextRetryDelay(previous, minimum, maximum time.Duration, jitter func() float64) (time.Duration, time.Duration) {
+	backoff := minimum
 	if previous > 0 {
-		delay = previous * 2
-		if delay < previous || delay > maximum {
-			delay = maximum
+		if previous >= maximum || previous > maximum-previous {
+			backoff = maximum
+		} else {
+			backoff = previous * 2
 		}
+	}
+	if backoff < minimum {
+		backoff = minimum
+	}
+	if backoff > maximum {
+		backoff = maximum
+	}
+
+	jitterValue := jitter()
+	if jitterValue < 0 {
+		jitterValue = 0
+	} else if jitterValue > 1 {
+		jitterValue = 1
+	}
+	delay := backoff - time.Duration(float64(backoff)*0.1*(1-jitterValue))
+	if delay < minimum {
+		delay = minimum
 	}
 	if delay > maximum {
 		delay = maximum
 	}
-	// Jitter is applied before capping, so retries remain randomized at max.
-	return time.Duration(float64(delay) * (0.9 + 0.1*jitter()))
+	return backoff, delay
 }
 
 func registrationRetryable(err error) bool {
@@ -90,8 +107,8 @@ func retryRouteRegistry[T any](
 		if !registrationRetryable(err) {
 			return zero, err
 		}
-		delay := nextRetryDelay(previous, config.MinRetryBackoff, config.MaxRetryBackoff, runtime.jitter)
-		previous = delay
+		backoff, delay := nextRetryDelay(previous, config.MinRetryBackoff, config.MaxRetryBackoff, runtime.jitter)
+		previous = backoff
 		logger.Warn("Route Registry request failed; retrying", slog.Duration("delay", delay), slog.Any("error", err))
 		if err := runtime.sleep(ctx, delay); err != nil {
 			return zero, err

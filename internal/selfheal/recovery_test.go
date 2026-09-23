@@ -88,7 +88,7 @@ func TestRouteRegistryRetries(t *testing.T) {
 			}, testConfig(), testLogger(), testRuntime(&delays))
 			assert.NoError(t, err)
 			assert.Equal(t, 2, calls)
-			assert.Equal(t, []time.Duration{900 * time.Millisecond}, delays)
+			assert.Equal(t, []time.Duration{time.Second}, delays)
 		})
 	}
 }
@@ -130,9 +130,43 @@ func TestRouteRegistryRetryStopsOnCancellation(t *testing.T) {
 	assert.Equal(t, 1, calls)
 }
 
-func TestRetryDelayRemainsRandomAtMaximum(t *testing.T) {
-	assert.Equal(t, 3600*time.Millisecond, nextRetryDelay(4*time.Second, time.Second, 4*time.Second, func() float64 { return 0 }))
-	assert.Equal(t, 4*time.Second, nextRetryDelay(4*time.Second, time.Second, 4*time.Second, func() float64 { return 1 }))
+func TestNextRetryDelay(t *testing.T) {
+	maxDuration := time.Duration(1<<63 - 1)
+	tests := []struct {
+		name                   string
+		previous, min, max     time.Duration
+		jitter                 float64
+		wantBackoff, wantDelay time.Duration
+	}{
+		{name: "minimum", min: time.Second, max: 4 * time.Second, jitter: 0, wantBackoff: time.Second, wantDelay: time.Second},
+		{name: "doubled", previous: time.Second, min: time.Second, max: 4 * time.Second, jitter: 0, wantBackoff: 2 * time.Second, wantDelay: 1800 * time.Millisecond},
+		{name: "maximum", previous: 2 * time.Second, min: time.Second, max: 4 * time.Second, jitter: 1, wantBackoff: 4 * time.Second, wantDelay: 4 * time.Second},
+		{name: "overflow", previous: maxDuration/2 + 1, min: time.Second, max: maxDuration, jitter: 1, wantBackoff: maxDuration, wantDelay: maxDuration},
+		{name: "close bounds", previous: time.Second, min: time.Second, max: 1050 * time.Millisecond, jitter: 0, wantBackoff: 1050 * time.Millisecond, wantDelay: time.Second},
+		{name: "jitter below lower boundary", previous: time.Second, min: time.Second, max: 4 * time.Second, jitter: -1, wantBackoff: 2 * time.Second, wantDelay: 1800 * time.Millisecond},
+		{name: "jitter above upper boundary", previous: time.Second, min: time.Second, max: 4 * time.Second, jitter: 2, wantBackoff: 2 * time.Second, wantDelay: 2 * time.Second},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backoff, delay := nextRetryDelay(test.previous, test.min, test.max, func() float64 { return test.jitter })
+			assert.Equal(t, test.wantBackoff, backoff)
+			assert.Equal(t, test.wantDelay, delay)
+		})
+	}
+}
+
+func TestRetryBackoffDoesNotCompoundJitter(t *testing.T) {
+	var delays []time.Duration
+	attempts := 0
+	_, err := retryRouteRegistry(context.Background(), func(context.Context) (string, error) {
+		attempts++
+		if attempts <= 3 {
+			return "", requester.HttpResponseError{Code: http.StatusServiceUnavailable}
+		}
+		return "ok", nil
+	}, testConfig(), testLogger(), testRuntime(&delays))
+	assert.NoError(t, err)
+	assert.Equal(t, []time.Duration{time.Second, 1800 * time.Millisecond, 3600 * time.Millisecond}, delays)
 }
 
 func TestPikoAuthenticationRefreshesJWT(t *testing.T) {
