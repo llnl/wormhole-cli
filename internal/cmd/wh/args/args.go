@@ -1,11 +1,6 @@
 package args
 
-import (
-	"fmt"
-	"time"
-
-	"github.com/urfave/cli/v3"
-)
+import "github.com/urfave/cli/v3"
 
 const (
 	DefaultAllowedGroups         = ""
@@ -21,9 +16,6 @@ const (
 	DefaultName                  = ""
 	DefaultPodmanCompat          = false
 	DefaultToken                 = ""
-	MinimumRetryBackoff          = 100 * time.Millisecond
-	DefaultMinRetryBackoff       = MinimumRetryBackoff
-	DefaultMaxRetryBackoff       = 15 * time.Second
 )
 
 const (
@@ -49,32 +41,6 @@ type CLIArgs struct {
 	Global   GlobalArgs
 	Open     OpenArgs
 	SelfHeal SelfHealArgs
-}
-
-// SelfHealArgs controls retry behavior for `wh open`.
-type SelfHealArgs struct {
-	MinRetryBackoff time.Duration
-	MaxRetryBackoff time.Duration
-}
-
-func DefaultSelfHealArgs() SelfHealArgs {
-	return SelfHealArgs{
-		MinRetryBackoff: DefaultMinRetryBackoff,
-		MaxRetryBackoff: DefaultMaxRetryBackoff,
-	}
-}
-
-func (a SelfHealArgs) Validate() error {
-	if a.MinRetryBackoff < MinimumRetryBackoff {
-		return fmt.Errorf("min-retry-backoff must be at least %s", MinimumRetryBackoff)
-	}
-	if a.MaxRetryBackoff <= 0 {
-		return fmt.Errorf("max-retry-backoff must be positive")
-	}
-	if a.MinRetryBackoff > a.MaxRetryBackoff {
-		return fmt.Errorf("min-retry-backoff must not exceed max-retry-backoff")
-	}
-	return nil
 }
 
 // GlobalArgs holds values for flags defined on the root command.
