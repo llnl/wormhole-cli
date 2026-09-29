@@ -301,7 +301,7 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 		})
 
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
-			return ctx.Err()
+			err = nil
 		}
 
 		return err
