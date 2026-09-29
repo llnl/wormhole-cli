@@ -210,24 +210,31 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 	if selfHeal.MinRetryBackoff == 0 && selfHeal.MaxRetryBackoff == 0 {
 		selfHeal = selfheal.DefaultConfig()
 	}
+
 	if err := selfHeal.Validate(); err != nil {
 		return err
 	}
+
 	register := func(registerCtx context.Context) (*routeregistry.RegistrationResponse, error) {
 		return selfheal.RegisterRoute(registerCtx, registry.RegisterRoute, a.Open.Community, a.Open.Name, selfHeal, logger)
 	}
+
 	pikoLogger, err := wormholepiko.NewLogger(verbose)
 	if err != nil {
 		return fmt.Errorf("create Piko logger: %w", err)
 	}
+
 	defer func() { _ = pikoLogger.Sync() }()
+
 	routeData, err := register(ctx)
 	if err != nil {
 		return err
 	}
+
 	if routeData == nil {
 		return errors.New("route registration returned no response")
 	}
+
 	if routeData.Airlock.JwtIssuerURL == nil || *routeData.Airlock.JwtIssuerURL == "" {
 		return errors.New("route registration response is missing Airlock JWT issuer URL")
 	}
@@ -266,21 +273,30 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 	}
 
 	g.Go(func() error {
-		listen := func(listenCtx context.Context, credentials wormholepiko.Credentials, targetAddr string, minBackoff, maxBackoff time.Duration) (wormholepiko.Forwarder, error) {
+		listen := func(
+			listenCtx context.Context,
+			credentials wormholepiko.Credentials,
+			targetAddr string,
+			minBackoff, maxBackoff time.Duration,
+		) (wormholepiko.Forwarder, error) {
 			return wormholepiko.ListenAndForward(listenCtx, credentials, targetAddr, minBackoff, maxBackoff, pikoLogger)
 		}
+
 		err := selfheal.Run(gCtx, routeData, register, registry.RefreshJWT, listen, airlockConfig.Addr, selfHeal, logger, func(publicURL string) {
 			log.Printf("Successfully Opened a Wormhole!\n")
 			log.Printf("URL: %s\n", publicURL)
 		})
+
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
-			return nil
+			return ctx.Err()
 		}
+
 		return err
 	})
 
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("wormhole error: %w", err)
 	}
+
 	return nil
 }

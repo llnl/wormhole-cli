@@ -30,6 +30,7 @@ func defaultRetryRuntime() retryRuntime {
 		sleep: func(ctx context.Context, delay time.Duration) error {
 			timer := time.NewTimer(delay)
 			defer timer.Stop()
+
 			select {
 			case <-timer.C:
 				return nil
@@ -43,6 +44,7 @@ func defaultRetryRuntime() retryRuntime {
 
 func nextRetryDelay(previous, minimum, maximum time.Duration, jitter func() float64) (time.Duration, time.Duration) {
 	backoff := minimum
+
 	if previous > 0 {
 		if previous >= maximum || previous > maximum-previous {
 			backoff = maximum
@@ -50,9 +52,11 @@ func nextRetryDelay(previous, minimum, maximum time.Duration, jitter func() floa
 			backoff = previous * 2
 		}
 	}
+
 	if backoff < minimum {
 		backoff = minimum
 	}
+
 	if backoff > maximum {
 		backoff = maximum
 	}
@@ -63,26 +67,26 @@ func nextRetryDelay(previous, minimum, maximum time.Duration, jitter func() floa
 	} else if jitterValue > 1 {
 		jitterValue = 1
 	}
+
 	delay := backoff - time.Duration(float64(backoff)*0.1*(1-jitterValue))
-	if delay < minimum {
-		delay = minimum
-	}
-	if delay > maximum {
-		delay = maximum
-	}
+	delay = max(delay, minimum)
+	delay = min(delay, maximum)
+
 	return backoff, delay
 }
 
 func registrationRetryable(err error) bool {
-	var status requester.HttpResponseError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[requester.HttpResponseError](err); ok {
 		return status.Code == http.StatusRequestTimeout || status.Code == http.StatusTooManyRequests ||
 			status.Code >= http.StatusInternalServerError && status.Code <= 599
 	}
+
 	if errors.Is(err, io.ErrUnexpectedEOF) {
 		return true
 	}
+
 	var networkError net.Error
+
 	return errors.As(err, &networkError)
 }
 
@@ -94,21 +98,28 @@ func retryRouteRegistry[T any](
 	runtime retryRuntime,
 ) (T, error) {
 	var zero T
+
 	var previous time.Duration
+
 	for {
 		result, err := operation(ctx)
 		if err == nil {
 			return result, nil
 		}
+
 		if ctx.Err() != nil {
 			return zero, ctx.Err()
 		}
+
 		if !registrationRetryable(err) {
 			return zero, err
 		}
+
 		backoff, delay := nextRetryDelay(previous, config.MinRetryBackoff, config.MaxRetryBackoff, runtime.jitter)
 		previous = backoff
+
 		logger.Warn("Route Registry request failed; retrying", slog.Duration("delay", delay), slog.Any("error", err))
+
 		if err := runtime.sleep(ctx, delay); err != nil {
 			return zero, err
 		}
@@ -129,6 +140,7 @@ func registerRouteWithRetry(
 	if err != nil {
 		return nil, fmt.Errorf("register route: %w", err)
 	}
+
 	return result, nil
 }
 
@@ -146,6 +158,7 @@ func refreshJWTWithRetry(
 	if err != nil {
 		return "", fmt.Errorf("refresh Piko JWT: %w", err)
 	}
+
 	return result, nil
 }
 
@@ -153,9 +166,11 @@ func credentialsFromRegistration(registration *routeregistry.RegistrationRespons
 	if registration == nil || registration.Tunnel.URL == nil || registration.Tunnel.JWT == nil || registration.Tunnel.Endpoint == nil {
 		return wormholepiko.Credentials{}, errors.New("route registration response is missing tunnel credentials")
 	}
+
 	if *registration.Tunnel.URL == "" || *registration.Tunnel.JWT == "" || *registration.Tunnel.Endpoint == "" {
 		return wormholepiko.Credentials{}, errors.New("route registration response contains empty tunnel credentials")
 	}
+
 	return wormholepiko.Credentials{
 		URL:        *registration.Tunnel.URL,
 		JWT:        *registration.Tunnel.JWT,
@@ -205,62 +220,81 @@ func run(
 	rotated := false
 	reRegistered := false
 	firstConnection := true
+
 	for {
 		credentials, err := credentialsFromRegistration(registration)
 		if err != nil {
 			return err
 		}
+
 		forwarder, err := listen(ctx, credentials, targetAddr, config.MinRetryBackoff, config.MaxRetryBackoff)
 		if err == nil {
 			if firstConnection {
 				onFirstConnect(registration.URL)
+
 				firstConnection = false
 			}
+
 			rotated = false
 			reRegistered = false
+
 			wait := make(chan error, 1)
+
 			go func() { wait <- forwarder.Wait() }()
+
 			select {
 			case err = <-wait:
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
+
 				if err == nil {
-					return errors.New("Piko forwarder stopped unexpectedly")
+					return errors.New("piko forwarder stopped unexpectedly")
 				}
 			case <-ctx.Done():
 				_ = forwarder.Close()
 				return ctx.Err()
 			}
 		}
+
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+
 		if !wormholepiko.AuthenticationFailure(err) {
 			return fmt.Errorf("connect to Piko: %w", err)
 		}
+
 		if rotated {
 			return fmt.Errorf("connect to Piko with refreshed JWT: %w", err)
 		}
+
 		logger.Warn("Piko credentials rejected; refreshing JWT")
+
 		jwt, refreshErr := refreshJWTWithRetry(ctx, refresh, credentials.JWT, config, logger, runtime)
 		if refreshErr == nil {
 			registration.Tunnel.JWT = &jwt
 			rotated = true
+
 			continue
 		}
+
 		var status requester.HttpResponseError
 		if !errors.As(refreshErr, &status) || status.Code != http.StatusUnauthorized {
 			return refreshErr
 		}
+
 		if reRegistered {
 			return fmt.Errorf("refresh Piko JWT after route re-registration: %w", refreshErr)
 		}
+
 		logger.Warn("Piko JWT refresh was unauthorized; registering route again")
+
 		registration, err = register(ctx)
 		if err != nil {
 			return err
 		}
+
 		reRegistered = true
 	}
 }

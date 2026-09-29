@@ -27,6 +27,12 @@ type Forwarder interface {
 
 type quietLogger struct{}
 
+func (l quietLogger) Debug(msg string, _ ...zap.Field) { l.log(msg) }
+func (l quietLogger) Info(msg string, _ ...zap.Field)  { l.log(msg) }
+func (l quietLogger) Warn(msg string, _ ...zap.Field)  { l.log(msg) }
+func (l quietLogger) Error(msg string, _ ...zap.Field) { l.log(msg) }
+func (quietLogger) Sync() error                        { return nil }
+
 func (quietLogger) log(msg string) {
 	switch msg {
 	case "disconnected; reconnecting", "connect failed; retrying", "connected":
@@ -34,19 +40,15 @@ func (quietLogger) log(msg string) {
 	}
 }
 
-func (l quietLogger) Debug(msg string, _ ...zap.Field) { l.log(msg) }
-func (l quietLogger) Info(msg string, _ ...zap.Field)  { l.log(msg) }
-func (l quietLogger) Warn(msg string, _ ...zap.Field)  { l.log(msg) }
-func (l quietLogger) Error(msg string, _ ...zap.Field) { l.log(msg) }
-func (quietLogger) Sync() error                        { return nil }
-
 // NewLogger returns Piko's verbose logger or a quiet connection-status logger.
 func NewLogger(verbose bool) (client.Logger, error) {
 	if !verbose {
 		return quietLogger{}, nil
 	}
+
 	config := zap.NewProductionConfig()
 	config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+
 	return config.Build()
 }
 
@@ -64,6 +66,7 @@ func ListenAndForward(
 	if err != nil {
 		return nil, fmt.Errorf("parse Piko URL: %w", err)
 	}
+
 	return (&client.Upstream{
 		URL:                 endpoint,
 		Token:               credentials.JWT,

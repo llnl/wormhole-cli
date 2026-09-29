@@ -1,6 +1,7 @@
 package selfheal
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -30,11 +31,14 @@ func (c Config) Validate() error {
 	if c.MinRetryBackoff < MinimumRetryBackoff {
 		return fmt.Errorf("min-retry-backoff must be at least %s", MinimumRetryBackoff)
 	}
+
 	if c.MaxRetryBackoff <= 0 {
-		return fmt.Errorf("max-retry-backoff must be positive")
+		return errors.New("max-retry-backoff must be positive")
 	}
+
 	if c.MinRetryBackoff > c.MaxRetryBackoff {
-		return fmt.Errorf("min-retry-backoff must not exceed max-retry-backoff")
+		return errors.New("min-retry-backoff must not exceed max-retry-backoff")
 	}
+
 	return nil
 }

@@ -40,7 +40,8 @@ type OpenArgs struct {
 // OpenFlags returns the []cli.Flag for the "open" subcommand (pass 2).
 // The srcs parameter provides TOML MapSources for the Sources chain.
 func OpenFlags(a *CLIArgs, srcs ...cli.MapSource) []cli.Flag {
-	flags := []cli.Flag{
+	flags := make([]cli.Flag, 0, 13)
+	flags = append(flags,
 		&cli.StringFlag{
 			Category:    categoryTunnel,
 			Destination: &a.Open.Name,
@@ -148,7 +149,7 @@ func OpenFlags(a *CLIArgs, srcs ...cli.MapSource) []cli.Flag {
 			Value:       DefaultAuthBearerHeader,
 			Hidden:      true,
 		},
-	}
+	)
 
 	return append(flags, selfHealFlags(a, srcs...)...)
 }
