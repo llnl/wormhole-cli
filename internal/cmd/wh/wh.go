@@ -164,6 +164,45 @@ func handleOpen(ctx context.Context, cCmd *cli.Command, a *args.CLIArgs, service
 	}
 }
 
+func parseAccessRules(openArgs args.OpenArgs) (accessUserGroups, accessUserGroups, error) {
+	split := func(r rune) bool { return r == ',' }
+
+	allowed := accessUserGroups{
+		Users:  strings.FieldsFunc(openArgs.AllowedUsers, split),
+		Groups: strings.FieldsFunc(openArgs.AllowedGroups, split),
+	}
+	forbidden := accessUserGroups{
+		Users:  strings.FieldsFunc(openArgs.ForbiddenUsers, split),
+		Groups: strings.FieldsFunc(openArgs.ForbiddenGroups, split),
+	}
+
+	if len(allowed.Users)+len(allowed.Groups) == 0 {
+		return accessUserGroups{}, accessUserGroups{}, errors.New("cannot create a wormhole with no allowed users and groups")
+	}
+
+	if overlap := intersect(allowed.Users, forbidden.Users); len(overlap) != 0 {
+		return accessUserGroups{}, accessUserGroups{}, fmt.Errorf("cannot both allow and forbid access for %q", overlap)
+	}
+
+	if overlap := intersect(allowed.Groups, forbidden.Groups); len(overlap) != 0 {
+		return accessUserGroups{}, accessUserGroups{}, fmt.Errorf("cannot both allow and forbid access for %q", overlap)
+	}
+
+	return allowed, forbidden, nil
+}
+
+func airlockIssuerURL(registration *routeregistry.RegistrationResponse) (string, error) {
+	if registration == nil {
+		return "", errors.New("route registration returned no response")
+	}
+
+	if registration.Airlock.JwtIssuerURL == nil || *registration.Airlock.JwtIssuerURL == "" {
+		return "", errors.New("route registration response is missing Airlock JWT issuer URL")
+	}
+
+	return *registration.Airlock.JwtIssuerURL, nil
+}
+
 func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.RegistryService, logger *slog.Logger, verbose bool) error {
 	fmt.Printf("Using wormhole-cli v%s\n", version.GetVersion())
 
@@ -174,32 +213,9 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 		log.Fatal(err)
 	}
 
-	splitFn := func(c rune) bool {
-		return c == ','
-	}
-
-	// split allowed and excluded user flags into slices
-	allowedUsers := strings.FieldsFunc(a.Open.AllowedUsers, splitFn)
-	allowedGroups := strings.FieldsFunc(a.Open.AllowedGroups, splitFn)
-
-	// ensure that either a set of allowed users or groups is set
-	if len(allowedUsers)+len(allowedGroups) <= 0 {
-		log.Fatal(errors.New("cannot create a wormhole with no allowed users and groups"))
-	}
-
-	forbiddenUsers := strings.FieldsFunc(a.Open.ForbiddenUsers, splitFn)
-	forbiddenGroups := strings.FieldsFunc(a.Open.ForbiddenGroups, splitFn)
-
-	// compute slice intersection and error if users are both allowed and excluded
-	// as of 02/03/2026 this causes an error with duplicate routes in the registry
-	allowedForbiddenUsers := intersect(allowedUsers, forbiddenUsers)
-	if len(allowedForbiddenUsers) != 0 {
-		log.Fatal(fmt.Errorf("cannot both allow and forbid access for %q", allowedForbiddenUsers))
-	}
-
-	allowedForbiddenGroups := intersect(allowedGroups, forbiddenGroups)
-	if len(allowedForbiddenGroups) != 0 {
-		log.Fatal(fmt.Errorf("cannot both allow and forbid access for %q", allowedForbiddenGroups))
+	allowed, forbidden, err := parseAccessRules(a.Open)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	// get airlock configuration for user and group headers
@@ -231,12 +247,9 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 		return err
 	}
 
-	if routeData == nil {
-		return errors.New("route registration returned no response")
-	}
-
-	if routeData.Airlock.JwtIssuerURL == nil || *routeData.Airlock.JwtIssuerURL == "" {
-		return errors.New("route registration response is missing Airlock JWT issuer URL")
+	issuerURL, err := airlockIssuerURL(routeData)
+	if err != nil {
+		return err
 	}
 
 	// briefly open a tcp socket to get a random open port then use that port for airlock
@@ -252,11 +265,11 @@ func openWormhole(ctx context.Context, a *args.CLIArgs, registry routeregistry.R
 	airlockConfig := airlockConfig{
 		Addr:                addr,
 		TargetPort:          port,
-		JwksEndpoint:        *routeData.Airlock.JwtIssuerURL,
-		AllowedUsers:        allowedUsers,
-		AllowedGroups:       allowedGroups,
-		ForbiddenUsers:      forbiddenUsers,
-		ForbiddenGroups:     forbiddenGroups,
+		JwksEndpoint:        issuerURL,
+		AllowedUsers:        allowed.Users,
+		AllowedGroups:       allowed.Groups,
+		ForbiddenUsers:      forbidden.Users,
+		ForbiddenGroups:     forbidden.Groups,
 		ForwardUserHeader:   forwardUserHeader,
 		ForwardGroupsHeader: forwardGroupsHeader,
 		AuthBearerHeader:    a.Open.AuthBearerHeader,

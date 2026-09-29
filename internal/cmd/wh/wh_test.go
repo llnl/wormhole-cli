@@ -181,6 +181,51 @@ func TestGlobalWrap_RegistryClientCreated(t *testing.T) {
 	assert.True(t, registryOK)
 }
 
+func TestParseAccessRules(t *testing.T) {
+	t.Run("parses users and groups", func(t *testing.T) {
+		allowed, forbidden, err := parseAccessRules(args.OpenArgs{
+			AllowedUsers:    "alice,bob,,",
+			AllowedGroups:   "developers",
+			ForbiddenUsers:  "mallory",
+			ForbiddenGroups: "contractors,guests",
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, accessUserGroups{Users: []string{"alice", "bob"}, Groups: []string{"developers"}}, allowed)
+		assert.Equal(t, accessUserGroups{Users: []string{"mallory"}, Groups: []string{"contractors", "guests"}}, forbidden)
+	})
+
+	t.Run("requires an allowed user or group", func(t *testing.T) {
+		_, _, err := parseAccessRules(args.OpenArgs{})
+
+		assert.EqualError(t, err, "cannot create a wormhole with no allowed users and groups")
+	})
+
+	t.Run("rejects overlapping users", func(t *testing.T) {
+		_, _, err := parseAccessRules(args.OpenArgs{AllowedUsers: "alice,bob", ForbiddenUsers: "bob"})
+
+		assert.EqualError(t, err, `cannot both allow and forbid access for ["bob"]`)
+	})
+
+	t.Run("rejects overlapping groups", func(t *testing.T) {
+		_, _, err := parseAccessRules(args.OpenArgs{AllowedGroups: "developers,admins", ForbiddenGroups: "admins"})
+
+		assert.EqualError(t, err, `cannot both allow and forbid access for ["admins"]`)
+	})
+}
+
+func TestAirlockIssuerURL(t *testing.T) {
+	_, err := airlockIssuerURL(nil)
+	assert.EqualError(t, err, "route registration returned no response")
+
+	_, err = airlockIssuerURL(&routeregistry.RegistrationResponse{})
+	assert.EqualError(t, err, "route registration response is missing Airlock JWT issuer URL")
+
+	empty := ""
+	_, err = airlockIssuerURL(&routeregistry.RegistrationResponse{Airlock: routeregistry.Airlock{JwtIssuerURL: &empty}})
+	assert.EqualError(t, err, "route registration response is missing Airlock JWT issuer URL")
+}
+
 func TestOpenWormholeRejectsNilRegistration(t *testing.T) {
 	registry := mock_routeregistry.NewMockRegistryService(gomock.NewController(t))
 	registry.EXPECT().RegisterRoute(gomock.Any(), "", "").Return(nil, nil)

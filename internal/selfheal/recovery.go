@@ -204,6 +204,68 @@ func Run(
 	return run(ctx, initial, register, refresh, listen, targetAddr, config, logger, onFirstConnect, defaultRetryRuntime())
 }
 
+func waitForForwarder(ctx context.Context, forwarder wormholepiko.Forwarder) error {
+	wait := make(chan error, 1)
+
+	go func() { wait <- forwarder.Wait() }()
+
+	select {
+	case err := <-wait:
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		if err == nil {
+			return errors.New("piko forwarder stopped unexpectedly")
+		}
+
+		return err
+	case <-ctx.Done():
+		_ = forwarder.Close()
+
+		return ctx.Err()
+	}
+}
+
+func recoverRejectedCredentials(
+	ctx context.Context,
+	registration *routeregistry.RegistrationResponse,
+	credentials wormholepiko.Credentials,
+	register func(context.Context) (*routeregistry.RegistrationResponse, error),
+	refresh jwtRefreshFunc,
+	reRegistered bool,
+	config Config,
+	logger *slog.Logger,
+	runtime retryRuntime,
+) (*routeregistry.RegistrationResponse, bool, error) {
+	logger.Warn("Piko credentials rejected; refreshing JWT")
+
+	jwt, err := refreshJWTWithRetry(ctx, refresh, credentials.JWT, config, logger, runtime)
+	if err == nil {
+		registration.Tunnel.JWT = &jwt
+
+		return registration, true, nil
+	}
+
+	var status requester.HttpResponseError
+	if !errors.As(err, &status) || status.Code != http.StatusUnauthorized {
+		return nil, false, err
+	}
+
+	if reRegistered {
+		return nil, false, fmt.Errorf("refresh Piko JWT after route re-registration: %w", err)
+	}
+
+	logger.Warn("Piko JWT refresh was unauthorized; registering route again")
+
+	registration, err = register(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return registration, false, nil
+}
+
 func run(
 	ctx context.Context,
 	initial *routeregistry.RegistrationResponse,
@@ -237,24 +299,7 @@ func run(
 
 			rotated = false
 			reRegistered = false
-
-			wait := make(chan error, 1)
-
-			go func() { wait <- forwarder.Wait() }()
-
-			select {
-			case err = <-wait:
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-
-				if err == nil {
-					return errors.New("piko forwarder stopped unexpectedly")
-				}
-			case <-ctx.Done():
-				_ = forwarder.Close()
-				return ctx.Err()
-			}
+			err = waitForForwarder(ctx, forwarder)
 		}
 
 		if ctx.Err() != nil {
@@ -269,32 +314,13 @@ func run(
 			return fmt.Errorf("connect to Piko with refreshed JWT: %w", err)
 		}
 
-		logger.Warn("Piko credentials rejected; refreshing JWT")
-
-		jwt, refreshErr := refreshJWTWithRetry(ctx, refresh, credentials.JWT, config, logger, runtime)
-		if refreshErr == nil {
-			registration.Tunnel.JWT = &jwt
-			rotated = true
-
-			continue
-		}
-
-		var status requester.HttpResponseError
-		if !errors.As(refreshErr, &status) || status.Code != http.StatusUnauthorized {
-			return refreshErr
-		}
-
-		if reRegistered {
-			return fmt.Errorf("refresh Piko JWT after route re-registration: %w", refreshErr)
-		}
-
-		logger.Warn("Piko JWT refresh was unauthorized; registering route again")
-
-		registration, err = register(ctx)
+		registration, rotated, err = recoverRejectedCredentials(
+			ctx, registration, credentials, register, refresh, reRegistered, config, logger, runtime,
+		)
 		if err != nil {
 			return err
 		}
 
-		reRegistered = true
+		reRegistered = !rotated
 	}
 }

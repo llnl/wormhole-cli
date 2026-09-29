@@ -168,6 +168,25 @@ func TestRetryBackoffDoesNotCompoundJitter(t *testing.T) {
 	assert.Equal(t, []time.Duration{time.Second, 1800 * time.Millisecond, 3600 * time.Millisecond}, delays)
 }
 
+func TestWaitForForwarderStopsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	forwarder := newFakeForwarder()
+	cancel()
+
+	err := waitForForwarder(ctx, forwarder)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.True(t, forwarder.closed)
+}
+
+func TestWaitForForwarderRejectsUnexpectedStop(t *testing.T) {
+	forwarder := newFailedForwarder(nil)
+
+	err := waitForForwarder(context.Background(), forwarder)
+
+	assert.EqualError(t, err, "piko forwarder stopped unexpectedly")
+}
+
 func TestPikoAuthenticationRefreshesJWT(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
