@@ -164,11 +164,11 @@ duplicate keys) > system config.
 `--config` and `--nodefaults` cannot be set from TOML files due to circular
 dependency with the config loading logic.
 
-Tunnel recovery uses a 100ms minimum and 15s maximum retry backoff by
-default. Configure these through `--min-retry-backoff` and
-`--max-retry-backoff`, their corresponding environment variables, or the
-`[defaults]` table in a config file. Normal configuration precedence applies.
-The minimum backoff cannot be configured below 100ms.
+`wh open` retries transient Route Registry failures and Piko reconnections.
+Retry backoff defaults to a 100ms minimum and a 15s maximum. Configure these
+bounds through `--min-retry-backoff` and `--max-retry-backoff`, their
+corresponding environment variables, or the `[defaults]` table in a config
+file. The minimum backoff cannot be configured below 100ms.
 
 ## Running
 
@@ -212,6 +212,8 @@ wh --token "$WORMHOLE_TOKEN" open \
 | `--forbidden-groups` | Comma-separated groups explicitly denied access. |
 | `--forwarded-header-user` | Header populated with request username. Defaults to `X-Forwarded-User`. |
 | `--forwarded-header-groups` | Header populated with request groups. Defaults to `X-Forwarded-Groups`. |
+| `--min-retry-backoff` | Minimum delay between tunnel recovery attempts. Defaults to and cannot be less than `100ms`. |
+| `--max-retry-backoff` | Maximum delay between tunnel recovery attempts. Defaults to `15s`. |
 
 At least one allowed user or allowed group is required. A user or group cannot
 be both allowed and forbidden for the same route.
@@ -312,16 +314,14 @@ make mocks
 
 ## Developer Notes
 
-- `internal/cmd/wh/wh.go` implements `open`, route registration, embedded
-  Airlock startup, and Piko upstream startup.
-- `internal/routeregistry` contains the Route Registry client used by
-  `route` and `community` commands.
+- `internal/cmd/wh/wh.go` orchestrates `open` and embedded Airlock startup.
+- `internal/routeregistry` contains the Route Registry client used by `open`,
+  `route`, and `community` commands.
+- `internal/selfheal` handles route registration retries and tunnel recovery.
+- `internal/piko` wraps Piko upstream startup and connection logging.
 - `internal/requester` wraps authenticated HTTP calls using the `X-Token`
   header and JSON content type.
 - `internal/ns` owns Linux namespace setup and lifecycle behavior.
-- The `open` command currently performs route registration through a direct
-  route API call, while route/community management uses the shared
-  `RegistryService` abstraction.
 
 ## Governance
 
