@@ -2,15 +2,20 @@ package routeregistry
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/llnl/wormhole-cli/internal/requester"
 )
 
 type RegistryService interface {
+	RegisterRoute(ctx context.Context, communityName, routeName string) (*RegistrationResponse, error)
+	RefreshJWT(ctx context.Context, jwt string) (string, error)
 	AddCommunity(ctx context.Context, name string) (*Community, error)
 	RemoveCommunity(ctx context.Context, identifier string) error
 	ResolveCommunity(ctx context.Context, identifier string) (*Community, error)
@@ -30,6 +35,10 @@ type RegistryClient struct {
 }
 
 func NewRegistryClient(token, endpoint string, client *http.Client, logger *slog.Logger) *RegistryClient {
+	if client == nil {
+		client = &http.Client{Timeout: 5 * time.Second}
+	}
+
 	return &RegistryClient{
 		client:   client,
 		token:    token,
@@ -107,12 +116,54 @@ func (c *RegistryClient) RemoveCommunityRoute(ctx context.Context, communityID, 
 // routes
 
 func (c *RegistryClient) RegisterRoute(ctx context.Context, communityName, routeName string) (*RegistrationResponse, error) {
-	r, err := do[RegistrationRequest, *RegistrationResponse](c, ctx, http.MethodPost, "api/v1/route", &RegistrationRequest{
+	r, err := do[RegistrationRequest, *RegistrationResponse](c, ctx, http.MethodPost, "api/v2/route", &RegistrationRequest{
 		Name:          routeName,
 		CommunityName: &communityName,
 	})
 
 	return r, err
+}
+
+// RefreshJWT exchanges an existing Piko JWT for a new one. It deliberately
+// uses X-JWT rather than the user's X-Token credential.
+func (c *RegistryClient) RefreshJWT(ctx context.Context, jwt string) (string, error) {
+	endpoint, err := url.JoinPath(c.endpoint, "api/latest/jwt")
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("create JWT refresh request: %w", err)
+	}
+
+	req.Header.Set("X-Jwt", jwt)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("execute JWT refresh request: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return "", requester.HttpResponseError{Code: resp.StatusCode}
+	}
+
+	var result struct {
+		JWT string `json:"jwt"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode JWT refresh response: %w", err)
+	}
+
+	if result.JWT == "" {
+		return "", errors.New("JWT refresh response contains an empty JWT")
+	}
+
+	return result.JWT, nil
 }
 
 // ResolveRoute resolves a route by partial ID or fully qualified name.

@@ -2,6 +2,7 @@ package wh
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,10 +11,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v3"
+	"go.uber.org/mock/gomock"
 
 	"github.com/llnl/wormhole-cli/internal/cmd/wh/args"
 	"github.com/llnl/wormhole-cli/internal/logctx"
 	"github.com/llnl/wormhole-cli/internal/routeregistry"
+	"github.com/llnl/wormhole-cli/test/mocks/mock_routeregistry"
 )
 
 func TestTasks_Structure(t *testing.T) {
@@ -50,7 +53,7 @@ func TestTasks_Structure(t *testing.T) {
 				names[n] = true
 			}
 		}
-		for _, expected := range []string{"name", "community", "app-port", "allowed-users", "allowed-groups", "forbidden-users", "forbidden-groups", "forwarded-header-user", "forwarded-header-groups"} {
+		for _, expected := range []string{"name", "community", "app-port", "allowed-users", "allowed-groups", "forbidden-users", "forbidden-groups", "forwarded-header-user", "forwarded-header-groups", "min-retry-backoff", "max-retry-backoff"} {
 			assert.True(t, names[expected], "missing open flag %q", expected)
 		}
 	})
@@ -176,4 +179,60 @@ func TestGlobalWrap_RegistryClientCreated(t *testing.T) {
 	})
 	cli.ActionFunc(wrapped)(ctx, &cli.Command{})
 	assert.True(t, registryOK)
+}
+
+func TestParseAccessRules(t *testing.T) {
+	t.Run("parses users and groups", func(t *testing.T) {
+		allowed, forbidden, err := parseAccessRules(args.OpenArgs{
+			AllowedUsers:    "alice,bob,,",
+			AllowedGroups:   "developers",
+			ForbiddenUsers:  "mallory",
+			ForbiddenGroups: "contractors,guests",
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, accessUserGroups{Users: []string{"alice", "bob"}, Groups: []string{"developers"}}, allowed)
+		assert.Equal(t, accessUserGroups{Users: []string{"mallory"}, Groups: []string{"contractors", "guests"}}, forbidden)
+	})
+
+	t.Run("requires an allowed user or group", func(t *testing.T) {
+		_, _, err := parseAccessRules(args.OpenArgs{})
+
+		assert.EqualError(t, err, "cannot create a wormhole with no allowed users and groups")
+	})
+
+	t.Run("rejects overlapping users", func(t *testing.T) {
+		_, _, err := parseAccessRules(args.OpenArgs{AllowedUsers: "alice,bob", ForbiddenUsers: "bob"})
+
+		assert.EqualError(t, err, `cannot both allow and forbid access for ["bob"]`)
+	})
+
+	t.Run("rejects overlapping groups", func(t *testing.T) {
+		_, _, err := parseAccessRules(args.OpenArgs{AllowedGroups: "developers,admins", ForbiddenGroups: "admins"})
+
+		assert.EqualError(t, err, `cannot both allow and forbid access for ["admins"]`)
+	})
+}
+
+func TestAirlockIssuerURL(t *testing.T) {
+	_, err := airlockIssuerURL(nil)
+	assert.EqualError(t, err, "route registration returned no response")
+
+	_, err = airlockIssuerURL(&routeregistry.RegistrationResponse{})
+	assert.EqualError(t, err, "route registration response is missing Airlock JWT issuer URL")
+
+	empty := ""
+	_, err = airlockIssuerURL(&routeregistry.RegistrationResponse{Airlock: routeregistry.Airlock{JwtIssuerURL: &empty}})
+	assert.EqualError(t, err, "route registration response is missing Airlock JWT issuer URL")
+}
+
+func TestOpenWormholeRejectsNilRegistration(t *testing.T) {
+	registry := mock_routeregistry.NewMockRegistryService(gomock.NewController(t))
+	registry.EXPECT().RegisterRoute(gomock.Any(), "", "").Return(nil, nil)
+	a := &args.CLIArgs{Open: args.OpenArgs{AppPort: "8080", AllowedUsers: "test"}}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	err := openWormhole(context.Background(), a, registry, logger, false)
+
+	assert.ErrorContains(t, err, "route registration returned no response")
 }
