@@ -166,9 +166,8 @@ dependency with the config loading logic.
 
 `wh open` retries transient Route Registry failures and Piko reconnections.
 Retry backoff defaults to a 100ms minimum and a 15s maximum. Configure these
-bounds through `--min-retry-backoff` and `--max-retry-backoff`, their
-corresponding environment variables, or the `[defaults]` table in a config
-file. The minimum backoff cannot be configured below 100ms.
+bounds through `--min-retry-backoff` and `--max-retry-backoff`. The minimum
+backoff cannot be configured below 100ms.
 
 ## Running
 
