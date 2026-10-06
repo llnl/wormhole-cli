@@ -1,6 +1,7 @@
 package args
 
 import (
+	"github.com/llnl/wormhole-cli/internal/selfheal"
 	"github.com/urfave/cli/v3"
 )
 
@@ -40,8 +41,9 @@ const (
 // CLIArgs is the superset of all CLI configuration. It composes
 // GlobalArgs (root-level flags) and OpenArgs (open subcommand flags).
 type CLIArgs struct {
-	Global GlobalArgs
-	Open   OpenArgs
+	Global   GlobalArgs
+	Open     OpenArgs
+	SelfHeal selfheal.Config
 }
 
 // GlobalArgs holds values for flags defined on the root command.

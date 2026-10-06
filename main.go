@@ -37,7 +37,6 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-
 	// Pass 2: build the CLI command tree with TOML-sourced flags and run.
 	cliArgs := &args.CLIArgs{}
 

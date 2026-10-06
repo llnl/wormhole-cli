@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/llnl/wormhole-cli/internal/selfheal"
 	"github.com/urfave/cli/v3"
 )
 
@@ -20,6 +21,8 @@ const (
 	forwardedHeaderGroupsName = "forwarded-header-groups"
 	//nolint:gosec // auth-bearer-header is a header name, not a credential
 	authBearerHeaderName = "auth-bearer-header"
+	minRetryBackoffName  = "min-retry-backoff"
+	maxRetryBackoffName  = "max-retry-backoff"
 )
 
 // OpenArgs holds values for flags defined on the "open" subcommand.
@@ -40,7 +43,8 @@ type OpenArgs struct {
 // OpenFlags returns the []cli.Flag for the "open" subcommand (pass 2).
 // The srcs parameter provides TOML MapSources for the Sources chain.
 func OpenFlags(a *CLIArgs, srcs ...cli.MapSource) []cli.Flag {
-	return []cli.Flag{
+	flags := make([]cli.Flag, 0, 13)
+	flags = append(flags,
 		&cli.StringFlag{
 			Category:    categoryTunnel,
 			Destination: &a.Open.Name,
@@ -148,5 +152,23 @@ func OpenFlags(a *CLIArgs, srcs ...cli.MapSource) []cli.Flag {
 			Value:       DefaultAuthBearerHeader,
 			Hidden:      true,
 		},
-	}
+		&cli.DurationFlag{
+			Category:    categoryTunnel,
+			Destination: &a.SelfHeal.MinRetryBackoff,
+			Name:        minRetryBackoffName,
+			Usage:       "Minimum delay between tunnel recovery attempts (must be at least 100ms)",
+			Sources:     flagSources(minRetryBackoffName, srcs...),
+			Value:       selfheal.DefaultMinRetryBackoff,
+		},
+		&cli.DurationFlag{
+			Category:    categoryTunnel,
+			Destination: &a.SelfHeal.MaxRetryBackoff,
+			Name:        maxRetryBackoffName,
+			Usage:       "Maximum delay between tunnel recovery attempts",
+			Sources:     flagSources(maxRetryBackoffName, srcs...),
+			Value:       selfheal.DefaultMaxRetryBackoff,
+		},
+	)
+
+	return flags
 }

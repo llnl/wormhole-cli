@@ -100,6 +100,36 @@ func (mr *MockRegistryServiceMockRecorder) ListRoutes(ctx, identifier any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRoutes", reflect.TypeOf((*MockRegistryService)(nil).ListRoutes), ctx, identifier)
 }
 
+// RefreshJWT mocks base method.
+func (m *MockRegistryService) RefreshJWT(ctx context.Context, jwt string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshJWT", ctx, jwt)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RefreshJWT indicates an expected call of RefreshJWT.
+func (mr *MockRegistryServiceMockRecorder) RefreshJWT(ctx, jwt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshJWT", reflect.TypeOf((*MockRegistryService)(nil).RefreshJWT), ctx, jwt)
+}
+
+// RegisterRoute mocks base method.
+func (m *MockRegistryService) RegisterRoute(ctx context.Context, communityName, routeName string) (*routeregistry.RegistrationResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterRoute", ctx, communityName, routeName)
+	ret0, _ := ret[0].(*routeregistry.RegistrationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RegisterRoute indicates an expected call of RegisterRoute.
+func (mr *MockRegistryServiceMockRecorder) RegisterRoute(ctx, communityName, routeName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRoute", reflect.TypeOf((*MockRegistryService)(nil).RegisterRoute), ctx, communityName, routeName)
+}
+
 // RemoveCommunity mocks base method.
 func (m *MockRegistryService) RemoveCommunity(ctx context.Context, identifier string) error {
 	m.ctrl.T.Helper()

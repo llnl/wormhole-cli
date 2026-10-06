@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/llnl/wormhole-cli/internal/requester"
 	"github.com/llnl/wormhole-cli/test/mocks/mock_http"
 	"github.com/llnl/wormhole-cli/test/testutil"
 )
@@ -35,6 +37,68 @@ func expectRoundTrip(mockRT *mock_http.MockRoundTripper, t *testing.T, method, p
 		assert.Equal(t, path, req.URL.Path)
 		return resp, err
 	})
+}
+
+func TestNewRegistryClientHTTPClient(t *testing.T) {
+	t.Run("sets default timeout", func(t *testing.T) {
+		client := NewRegistryClient("token", testutil.TestEndpointUrl, nil, nil)
+		assert.Equal(t, 5*time.Second, client.client.Timeout)
+	})
+
+	t.Run("preserves injected client", func(t *testing.T) {
+		injected := &http.Client{Timeout: 17 * time.Second}
+		client := NewRegistryClient("token", testutil.TestEndpointUrl, injected, nil)
+		assert.Same(t, injected, client.client)
+		assert.Equal(t, 17*time.Second, client.client.Timeout)
+	})
+}
+
+func TestRegistryClientRefreshJWT(t *testing.T) {
+	t.Run("sends JWT header and decodes response", func(t *testing.T) {
+		client, mockRT := setupRegistryClient(t, "user-token", testutil.TestEndpointUrl)
+		mockRT.EXPECT().RoundTrip(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
+			assert.Equal(t, http.MethodPost, req.Method)
+			assert.Equal(t, "/api/v1/jwt", req.URL.Path)
+			assert.Equal(t, "old-jwt", req.Header.Get("X-JWT"))
+			assert.Empty(t, req.Header.Get("X-Token"))
+			return testutil.NewMockResponse(http.StatusOK, `{"jwt":"new-jwt"}`), nil
+		})
+		jwt, err := client.RefreshJWT(t.Context(), "old-jwt")
+		assert.NoError(t, err)
+		assert.Equal(t, "new-jwt", jwt)
+	})
+
+	t.Run("preserves HTTP status", func(t *testing.T) {
+		client, mockRT := setupRegistryClient(t, "user-token", testutil.TestEndpointUrl)
+		mockRT.EXPECT().RoundTrip(gomock.Any()).Return(testutil.NewMockResponse(http.StatusUnauthorized, ""), nil)
+		_, err := client.RefreshJWT(t.Context(), "expired")
+		var status requester.HttpResponseError
+		assert.ErrorAs(t, err, &status)
+		assert.Equal(t, http.StatusUnauthorized, status.Code)
+	})
+
+	t.Run("honors cancellation", func(t *testing.T) {
+		client, mockRT := setupRegistryClient(t, "user-token", testutil.TestEndpointUrl)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		mockRT.EXPECT().RoundTrip(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		})
+		_, err := client.RefreshJWT(ctx, "old-jwt")
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+
+	for name, body := range map[string]string{
+		"malformed response": `not JSON`,
+		"empty JWT":          `{"jwt":""}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			client, mockRT := setupRegistryClient(t, "user-token", testutil.TestEndpointUrl)
+			mockRT.EXPECT().RoundTrip(gomock.Any()).Return(testutil.NewMockResponse(http.StatusOK, body), nil)
+			_, err := client.RefreshJWT(t.Context(), "old-jwt")
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestRegistryClient_Communities(t *testing.T) {
@@ -230,12 +294,14 @@ func TestRegistryClient_Routes(t *testing.T) {
 				client, mockRT := setupRegistryClient(t, testutil.TestToken, testutil.TestEndpointUrl)
 				mockRT.EXPECT().RoundTrip(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
 					assert.Equal(t, http.MethodPost, req.Method)
-					assert.Equal(t, "/api/v1/route", req.URL.Path)
+					assert.Equal(t, "/api/v2/route", req.URL.Path)
 
 					var body RegistrationRequest
 					err := json.NewDecoder(req.Body).Decode(&body)
 					assert.NoError(t, err)
 					assert.Equal(t, "test-route", body.Name)
+					assert.NotNil(t, body.CommunityName)
+					assert.Equal(t, "test-comm", *body.CommunityName)
 
 					return testutil.NewMockResponse(tt.responseStatus, tt.mockResponse), nil
 				})
@@ -244,6 +310,10 @@ func TestRegistryClient_Routes(t *testing.T) {
 				assertError(t, err, tt.wantErr)
 				if !tt.wantErr {
 					assert.Equal(t, tt.expectedURL, resp.URL)
+				} else {
+					var httpErr requester.HttpResponseError
+					assert.ErrorAs(t, err, &httpErr)
+					assert.Equal(t, tt.responseStatus, httpErr.Code)
 				}
 			})
 		}

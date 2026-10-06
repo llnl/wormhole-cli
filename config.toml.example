@@ -55,3 +55,9 @@
 
 # Set Authorization: Bearer header (hidden, default: false).
 # auth-bearer-header = false
+
+# Minimum delay between tunnel recovery attempts (default and lower bound: 100ms).
+# min-retry-backoff = "100ms"
+
+# Maximum delay between tunnel recovery attempts (default: 15s).
+# max-retry-backoff = "15s"
