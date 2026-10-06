@@ -58,7 +58,7 @@ func TestRegistryClientRefreshJWT(t *testing.T) {
 		client, mockRT := setupRegistryClient(t, "user-token", testutil.TestEndpointUrl)
 		mockRT.EXPECT().RoundTrip(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
 			assert.Equal(t, http.MethodPost, req.Method)
-			assert.Equal(t, "/api/latest/jwt", req.URL.Path)
+			assert.Equal(t, "/api/v1/jwt", req.URL.Path)
 			assert.Equal(t, "old-jwt", req.Header.Get("X-JWT"))
 			assert.Empty(t, req.Header.Get("X-Token"))
 			return testutil.NewMockResponse(http.StatusOK, `{"jwt":"new-jwt"}`), nil

@@ -13,6 +13,8 @@ import (
 	"github.com/llnl/wormhole-cli/internal/requester"
 )
 
+const refreshJWTPath = "api/v1/jwt"
+
 type RegistryService interface {
 	RegisterRoute(ctx context.Context, communityName, routeName string) (*RegistrationResponse, error)
 	RefreshJWT(ctx context.Context, jwt string) (string, error)
@@ -127,7 +129,7 @@ func (c *RegistryClient) RegisterRoute(ctx context.Context, communityName, route
 // RefreshJWT exchanges an existing Piko JWT for a new one. It deliberately
 // uses X-JWT rather than the user's X-Token credential.
 func (c *RegistryClient) RefreshJWT(ctx context.Context, jwt string) (string, error) {
-	endpoint, err := url.JoinPath(c.endpoint, "api/latest/jwt")
+	endpoint, err := url.JoinPath(c.endpoint, refreshJWTPath)
 	if err != nil {
 		return "", err
 	}
