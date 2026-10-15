@@ -1,0 +1,10 @@
+FROM docker.io/library/debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY binaries/wormhole-cli-linux-amd64 /wh
+RUN chmod +x /wh
+
+ENTRYPOINT ["/wh"]
